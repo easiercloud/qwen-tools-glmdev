@@ -51,6 +51,17 @@
     .brand .meta {
       font: 500 11px/1 var(--mono); color: var(--muted); letter-spacing: .16em; text-transform: uppercase;
     }
+    .brand-links { display: flex; align-items: center; gap: 10px; }
+    .brand-links a {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 32px; padding: 0 11px;
+      border: 1px solid var(--line); border-radius: 999px;
+      background: var(--card); color: var(--ink);
+      text-decoration: none; font: 600 12px/1 var(--sans);
+      letter-spacing: 0; text-transform: none;
+    }
+    .brand-links a:hover { border-color: var(--accent); color: var(--accent); }
+    .brand-links svg { width: 14px; height: 14px; }
     .layout {
       display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 28px; margin-top: 28px;
     }
@@ -117,6 +128,7 @@
       color: var(--muted);
     }
     .empty strong { display: block; color: var(--ink); font-size: 16px; margin-bottom: 6px; font-weight: 600; }
+    .empty code { font: 500 12px/1.3 var(--mono); }
     @media (max-width: 980px) {
       .bento { grid-template-columns: 1fr; }
     }
@@ -137,7 +149,16 @@
   <div class="shell">
     <header class="brand">
       <h1>QWEN <span>小工具</span></h1>
-      <div class="meta">Training lab</div>
+      <div class="brand-links">
+        <a href="https://github.com/zyang6/qwen-tools" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库">
+          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
+          GitHub
+        </a>
+        <a href="https://github.com/zyang6/qwen-tools/issues/new" target="_blank" rel="noopener noreferrer" aria-label="反馈问题">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="13"></line><line x1="12" y1="16.5" x2="12.01" y2="16.5"></line></svg>
+          反馈
+        </a>
+      </div>
     </header>
 
     <div class="layout">
@@ -155,21 +176,21 @@
           <p class="kicker">Memory</p>
           <h2>显存分析</h2>
           <div class="bento">
-            <a class="tool" href="megatron-grpo.html">
+            <a class="tool" href="memory/megatron.html">
               <div>
                 <span class="tag">Megatron</span>
                 <h3>Megatron 显存建模</h3>
               </div>
               <div class="go">打开 →</div>
             </a>
-            <a class="tool" href="fsdp.html">
+            <a class="tool" href="memory/fsdp.html">
               <div>
                 <span class="tag">FSDP</span>
                 <h3>FSDP 显存建模</h3>
               </div>
               <div class="go">打开 →</div>
             </a>
-            <a class="tool" href="infer.html">
+            <a class="tool" href="memory/infer.html">
               <div>
                 <span class="tag">Inference · MoE</span>
                 <h3>推理显存建模</h3>
@@ -184,7 +205,7 @@
           <h2>数据</h2>
           <div class="empty">
             <strong>尚未收录工具</strong>
-            样本、打包与数据通路相关工具会放在这一模块。
+            样本、打包与数据通路放在 <code>data/</code>。不要把显存页放进这一栏。
           </div>
         </section>
         <section class="panel" id="mod-perf" hidden>
@@ -192,7 +213,7 @@
           <h2>性能</h2>
           <div class="empty">
             <strong>尚未收录工具</strong>
-            吞吐、耗时与 profiling 相关工具会放在这一模块。
+            吞吐、耗时与 profiling 放在 <code>perf/</code>。
           </div>
         </section>
         <section class="panel" id="mod-ops" hidden>
@@ -200,7 +221,7 @@
           <h2>算子</h2>
           <div class="empty">
             <strong>尚未收录工具</strong>
-            算子对照与精度相关工具会放在这一模块。
+            算子对照与精度放在 <code>ops/</code>。
           </div>
         </section>
         <section class="panel" id="mod-bugs" hidden>
@@ -208,7 +229,7 @@
           <h2>已知问题</h2>
           <div class="empty">
             <strong>尚未收录工具</strong>
-            训练与推理已知问题会放在这一模块。
+            训练与推理已知问题放在 <code>issues/</code>。
           </div>
         </section>
         <section class="panel" id="mod-reports" hidden>
@@ -216,7 +237,7 @@
           <h2>技术报告</h2>
           <div class="empty">
             <strong>尚未收录工具</strong>
-            分析笔记与报告会放在这一模块。
+            分析笔记与报告放在 <code>reports/</code>。
           </div>
         </section>
       </main>
@@ -225,12 +246,19 @@
   <script>
     const buttons = [...document.querySelectorAll("nav.mods button")];
     const panels = [...document.querySelectorAll(".panel")];
+    function showMod(id) {
+      buttons.forEach((b) => b.classList.toggle("active", b.dataset.mod === id));
+      panels.forEach((p) => { p.hidden = p.id !== "mod-" + id; });
+    }
     buttons.forEach((btn) => {
       btn.addEventListener("click", () => {
-        buttons.forEach((b) => b.classList.toggle("active", b === btn));
-        panels.forEach((p) => { p.hidden = p.id !== "mod-" + btn.dataset.mod; });
+        const id = btn.dataset.mod;
+        showMod(id);
+        history.replaceState(null, "", "#" + id);
       });
     });
+    const initial = (location.hash || "#mem").replace("#", "");
+    if (buttons.some((b) => b.dataset.mod === initial)) showMod(initial);
   </script>
 </body>
 </html>

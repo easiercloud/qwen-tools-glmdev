@@ -1,11 +1,44 @@
 # QWEN 小工具
 
-训练工程工具入口。
+训练工程工具台。一个仓库、一个入口，按工作面拆成独立模块，避免显存、数据、性能的改动互相踩。
 
-## 显存分析
+在线入口：[zyang6.github.io/qwen-tools](https://zyang6.github.io/qwen-tools/)  
+源码：[github.com/zyang6/qwen-tools](https://github.com/zyang6/qwen-tools)
 
-- [Megatron 显存建模](megatron-grpo.html)（静态 N_rank×4；高峰词表 2×T×(V/TP)×4；dense EP=1）
-- [FSDP 显存建模](fsdp.html)（静态 N/P×10 + 动态 梯度×2 + 6U + 激活 + 运行时预留）
-- [推理显存建模](infer.html)（嵌入 [Eco-Sphere Memory Planner](https://eco-sphere.github.io/infer-memory-visualizer/)）
+## 模块
 
-后续模块：数据、性能、算子、已知问题、技术报告。
+| 编号 | 工作面 | 目录 | 状态 |
+|---|---|---|---|
+| 01 | 显存分析 | [`memory/`](memory/) | 已上线：Megatron / FSDP / 推理 |
+| 02 | 数据 | [`data/`](data/) | 空 |
+| 03 | 性能 | [`perf/`](perf/) | 空 |
+| 04 | 算子 | [`ops/`](ops/) | 空 |
+| 05 | 已知问题 | [`issues/`](issues/) | 空 |
+| 06 | 技术报告 | [`reports/`](reports/) | 空 |
+
+## 仓库结构
+
+```text
+qwen-tools/
+├── index.html          # 总入口（GitHub Pages）
+├── README.md           # 本文件：模块地图
+├── memory/             # 01 显存分析
+│   ├── README.md
+│   ├── megatron.html
+│   ├── fsdp.html
+│   └── infer.html
+├── data/               # 02 数据
+├── perf/               # 03 性能
+├── ops/                # 04 算子
+├── issues/             # 05 已知问题
+└── reports/            # 06 技术报告
+```
+
+## 本地预览
+
+```bash
+cd qwen-tools
+python3 -m http.server 8876 --bind 127.0.0.1
+```
+
+打开 `http://127.0.0.1:8876/`。

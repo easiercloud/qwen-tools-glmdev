@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light" />
-  <title>Megatron 显存建模</title>
+  <title>FSDP 显存建模</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -52,6 +52,9 @@
     .header-inner {
       max-width: 1280px; margin: 0 auto; padding: 18px 22px 20px;
     }
+    .header-row {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+    }
     header a.home {
       color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 600;
       letter-spacing: .06em; display: inline-block; margin-bottom: 8px;
@@ -60,12 +63,19 @@
     header h1 {
       margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.04em; line-height: 1.15;
     }
-    header p {
-      margin: 8px 0 0; font-size: 15px; color: var(--muted); max-width: 52em; line-height: 1.55;
+    .top-actions { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; padding-top: 22px; }
+    .top-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 34px; padding: 0 12px;
+      border: 1px solid var(--line); border-radius: 999px;
+      background: rgba(255,255,255,.72); color: var(--text);
+      text-decoration: none; font: 600 13px/1 var(--sans);
     }
-    header p code {
-      font: 600 13px/1.4 var(--mono); color: var(--text);
-      background: rgba(255,255,255,.7); border-radius: 6px; padding: 1px 6px;
+    .top-link:hover { border-color: var(--accent); color: var(--accent); }
+    .top-link svg { width: 14px; height: 14px; }
+    header p {
+    header p {
+      margin: 8px 0 0; font-size: 15px; color: var(--muted); max-width: 46em; line-height: 1.55;
     }
     .app {
       display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 18px;
@@ -82,6 +92,20 @@
       text-transform: uppercase; color: var(--accent);
     }
     h3.sec { margin: 0 0 12px; font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+    .drop {
+      border: 1px dashed #b7c8bf; border-radius: 10px; padding: 14px 10px;
+      text-align: center; color: var(--muted); background: #f7faf8; cursor: pointer;
+    }
+    .drop.over, .drop:hover { border-color: var(--accent); background: #eef6f2; }
+    .drop strong { color: var(--text); display: block; margin-bottom: 4px; }
+    .drop .fn { color: var(--ok); font-size: 13px; margin-top: 6px; word-break: break-all; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    button {
+      border: 1px solid var(--line); background: #fff; color: var(--text);
+      border-radius: 10px; padding: 8px 14px; cursor: pointer; font: 600 14px var(--sans);
+    }
+    button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
     .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
     .chip {
       font-size: 12px; font-weight: 600; background: #eef2f0; color: #3d4d46;
@@ -89,13 +113,12 @@
     }
     .chip.ok { background: #e4f5ea; color: var(--ok); }
     .chip.warn { background: #fff1d6; color: var(--warn); }
-    .chip.bad { background: #fde8e8; color: var(--bad); }
     .err { color: var(--bad); font-size: 13px; min-height: 1.1em; margin-top: 8px; }
     .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
     .fields.one { grid-template-columns: 1fr; }
     label.f { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
-    label.f[hidden] { display: none !important; }
     label.chk { font-size: 15px; color: var(--text); display: flex; align-items: center; gap: 9px; }
+    .hint { font-size: 12.5px; font-weight: 500; color: #7a8982; line-height: 1.45; }
     input[type=number], input[type=text], select {
       width: 100%; height: 40px; font: 500 14px/1.2 var(--mono); padding: 8px 11px;
       border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.92); color: var(--text);
@@ -177,14 +200,30 @@
       .blocks { grid-template-columns: 1fr 1fr; }
       .hero .num { font-size: 40px; }
       header h1 { font-size: 24px; }
+      .header-row { flex-direction: column; }
+      .top-actions { padding-top: 8px; }
     }
   </style>
 </head>
 <body>
   <header>
     <div class="header-inner">
-      <a class="home" href="./">← QWEN 小工具</a>
-      <h1>Megatron 显存建模</h1>
+      <div class="header-row">
+        <div>
+          <a class="home" href="../">← QWEN 小工具</a>
+          <h1>FSDP 显存建模</h1>
+        </div>
+        <div class="top-actions">
+          <a class="top-link" href="https://github.com/zyang6/qwen-tools" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
+            GitHub
+          </a>
+          <a class="top-link" href="https://github.com/zyang6/qwen-tools/issues/new?title=%5Bmemory%2Ffsdp%5D%20%E5%8F%8D%E9%A6%88" target="_blank" rel="noopener noreferrer" aria-label="反馈问题">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="13"></line><line x1="12" y1="16.5" x2="12.01" y2="16.5"></line></svg>
+            反馈
+          </a>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -196,8 +235,10 @@
           <select id="ovModel"></select>
         </label>
         <label class="f" style="margin-top:10px;">自定义 ModelScope 仓库
+          <span class="hint">任意 owner/name，回车拉取。</span>
           <input id="ovCustomRepo" type="text" placeholder="Qwen/Qwen3.5-9B" autocomplete="off" />
         </label>
+        <div class="muted" id="cfgHint" style="margin-top:8px;">权重数据实时从 ModelScope 拉取。</div>
         <div class="chips" id="chips"></div>
         <div class="err" id="err"></div>
       </section>
@@ -205,30 +246,49 @@
       <section class="card">
         <h3 class="sec">切分配置</h3>
         <div class="fields">
-          <label class="f">TP<input id="ovTP" type="number" min="0" step="1" /></label>
-          <label class="f">PP<input id="ovPP" type="number" min="0" step="1" /></label>
-          <label class="f" id="epField">EP<input id="ovEP" type="number" min="0" step="1" /></label>
-          <label class="f" id="etpField">ETP<input id="ovETP" type="number" min="0" step="1" /></label>
+          <label class="f">FSDP 卡数 P<input id="ovP" type="number" min="0" step="1" /></label>
           <label class="f">单卡容量 GiB<input id="ovHbm" type="number" min="0" step="1" /></label>
+          <label class="f" id="wrapField">Wrap 粒度
+            <select id="ovWrap">
+              <option value="0">嵌套（experts）</option>
+              <option value="1">整层 layers.*</option>
+            </select>
+          </label>
           <label class="f">HCCL_BUFFSIZE MB<input id="ovHccl" type="number" min="0" step="1" /></label>
+        </div>
+        <p class="hint" id="splitHint" style="margin:8px 0 0;">param=bf16 · reduce=fp32 · AdamW · EP=1 · CP=1。静态 N/P×10（不含梯度）；梯度作动态并 ×2。</p>
+      </section>
+
+      <section class="card">
+        <h3 class="sec">MTP 层</h3>
+        <div class="fields one">
+          <label class="f">MTP 层数<span class="hint">训练常用 0</span>
+            <input id="ovMtp" type="number" min="0" step="1" />
+          </label>
         </div>
       </section>
 
       <section class="card">
-        <h3 class="sec">序列与 microbatch</h3>
+        <h3 class="sec">训练数据</h3>
         <div class="fields">
-          <label class="f">mbs / 卡<input id="ovMbs" type="number" min="0" step="1" /></label>
-          <label class="f">prompt<input id="ovPrompt" type="number" min="0" step="1" /></label>
-          <label class="f">response<input id="ovResp" type="number" min="0" step="1" /></label>
+          <label class="f">实际 seq<input id="ovSeq" type="number" min="0" step="1" /></label>
+          <label class="f">micro_batch_size<input id="ovMbs" type="number" min="0" step="1" /></label>
+          <label class="f">chunk_mbs<input id="ovChunk" type="number" min="0" step="1" /></label>
         </div>
+        <p class="hint" style="margin:8px 0 0;">填真实 token 数，不要用 yaml 的 cutoff_len。chunk_mbs&gt;0 时 B_fwd 取该值。</p>
       </section>
 
       <section class="card">
         <h3 class="sec">显存优化</h3>
+        <label class="f">prefetch<span class="hint" id="prefetchHint">计算本层时预取后续层，每 +1 增加 1×U</span>
+          <input id="ovPrefetch" type="number" min="0" step="1" />
+        </label>
         <div class="checks">
-          <label class="chk"><input id="ovAdamOff" type="checkbox" /> Adam 在 CPU</label>
-          <label class="chk"><input id="ovRecompute" type="checkbox" /> full recompute</label>
-          <label class="chk"><input id="ovEntropy" type="checkbox" /> 算 entropy</label>
+          <label class="chk"><input id="ovRecompute" type="checkbox" /> recompute 层激活</label>
+          <label class="chk"><input id="ovOffload" type="checkbox" /> activation offload</label>
+          <label class="chk"><input id="ovSkipGdn" type="checkbox" /> skip_gdn_recompute</label>
+          <label class="chk" id="gmmRow"><input id="ovGmm" type="checkbox" /> grouped expert matmul</label>
+          <label class="chk"><input id="ovFreeze" type="checkbox" /> 冻结 ViT</label>
         </div>
       </section>
     </aside>
@@ -237,7 +297,7 @@
       <section class="card hero">
         <div class="lab">Estimated per device</div>
         <div class="num" id="vTotal">—<span>GiB</span></div>
-        <div class="muted" id="vTotalSub"></div>
+        <div class="muted" id="vTotalSub">npu-smi Used 口径</div>
         <div class="bar" id="hbmBar" style="margin-top:14px;"></div>
         <div class="muted" id="vRemain"></div>
       </section>
@@ -258,14 +318,15 @@
 
 <script>
 const GIB = 1024 ** 3;
+const MIB = 1024 ** 2;
 const COLORS = {
-  weight: "var(--c-w)", grad: "var(--c-g)", adam: "var(--c-o)",
-  act: "var(--c-a)", dyn: "var(--c-d)",
-  hccl: "var(--c-h)", frag: "var(--c-f)", pta: "var(--c-p)", os: "var(--c-os)",
+  weight: "var(--c-w)", grad: "var(--c-g)", adam: "var(--c-o)", act: "var(--c-a)",
+  dyn: "var(--c-d)", pile: "var(--c-pile)", hccl: "var(--c-h)", frag: "var(--c-f)",
+  pta: "var(--c-p)", os: "var(--c-os)",
 };
 
-const DEFAULT_12L = {
-  vocab: 248320, hidden: 2048, layers: 12, experts: 256, moeI: 512, shareI: 512, denseI: 0,
+const DEFAULT_35B = {
+  vocab: 248320, hidden: 2048, layers: 20, experts: 256, moeI: 512, shareI: 512, denseI: 0,
   nQ: 16, nKV: 2, headDim: 256, fullInterval: 4,
   gdnKH: 16, gdnKD: 128, gdnVH: 32, gdnVD: 128, gdnConv: 4, mtp: 0,
   vitDepth: 27, vitH: 1152, vitI: 4304, vitOut: 2048,
@@ -285,34 +346,26 @@ const EMPTY_MODEL = {
   arch: "", topk: 8,
 };
 
-const DEFAULT_27B = {
-  vocab: 248320, hidden: 5120, layers: 64, experts: 0, moeI: 0, shareI: 0, denseI: 17408,
-  nQ: 24, nKV: 4, headDim: 256, fullInterval: 4,
-  gdnKH: 16, gdnKD: 128, gdnVH: 48, gdnVD: 128, gdnConv: 4, mtp: 1,
-  vitDepth: 27, vitH: 1152, vitI: 4304, vitOut: 5120,
-  patch: 16, tPatch: 2, inCh: 3, merge: 2, nPos: 2304,
-  tie: false, attnGate: true, layerTypes: [],
-  arch: "Qwen3_5ForConditionalGeneration",
-  topk: 8,
-};
-
 function defaultLayerTypes(L, iv) {
   return Array.from({ length: L }, (_, i) => ((i + 1) % iv === 0 ? "full_attention" : "linear_attention"));
 }
 
-function isMoeModel(model) { return (model && model.experts || 0) > 0; }
-
-function defaultTrain(model) {
-  const moe = isMoeModel(model);
-  const nKV = (model && model.nKV) || 0;
-  const denseTP = nKV > 0 ? Math.min(4, nKV) : 4;
+function defaultTrainMoe() {
   return {
-    TP: moe ? 2 : denseTP, PP: 1, EP: moe ? 8 : 1, ETP: 1,
-    mbs: 1, prompt: 1024, resp: 2048,
-    adamOff: true,
-    recompute: true, recLayers: 1,
-    entropy: false,
-    bw: 2, hbm: 64, hcclMB: 200,
+    P: 8, EP: 1, CP: 1, ring: 1, bw: 2, nAdam: 2, bAdam: 4, bReduce: 4,
+    mbs: 4, seq: 512, chunk: 2, prefetch: 1, wrap: 0,
+    freezeVisual: false, recompute: true, offload: true,
+    skipGdn: true, gmm: true, hbm: 64, mtp: 0, hcclMB: 200,
+    fragG: 1, ptaG: 1, osG: 3.5,
+  };
+}
+
+function defaultTrainDense() {
+  return {
+    P: 8, EP: 1, CP: 1, ring: 1, bw: 2, nAdam: 2, bAdam: 4, bReduce: 4,
+    mbs: 2, seq: 448, chunk: 0, prefetch: 1, wrap: 1,
+    freezeVisual: false, recompute: true, offload: true,
+    skipGdn: true, gmm: false, hbm: 64, mtp: 0, hcclMB: 200,
     fragG: 1, ptaG: 1, osG: 3.5,
   };
 }
@@ -329,7 +382,6 @@ const QWEN_GROUPS = [
   {
     label: "Qwen3.5",
     models: [
-      "Qwen3.5-35B-A3B (12L)",
       "Qwen3.5-0.8B", "Qwen3.5-2B", "Qwen3.5-4B", "Qwen3.5-9B", "Qwen3.5-27B",
       "Qwen3.5-35B-A3B", "Qwen3.5-122B-A10B", "Qwen3.5-397B-A17B",
     ],
@@ -363,19 +415,14 @@ function allQwenModels() {
 }
 
 function repoForModel(name) {
-  if (name === "Qwen3.5-35B-A3B (12L)") return "local:12L";
-  if (name === "Qwen3.6-35B-A3B (20L)") return "local:20L";
-  if (name === "Qwen3.5-27B") return "local:27B";
-  return "Qwen/" + name;
+  return name === "Qwen3.6-35B-A3B (20L)" ? "local:20L" : "Qwen/" + name;
 }
 
-const DEFAULT_20L = { ...DEFAULT_12L, layers: 20 };
-
 const S = {
-  modelName: "Qwen3.5-35B-A3B (12L)",
-  weightRepo: "local:12L",
-  model: { ...DEFAULT_12L, layerTypes: defaultLayerTypes(12, 4) },
-  train: defaultTrain(DEFAULT_12L),
+  modelName: "Qwen3.5-27B",
+  weightRepo: "Qwen/Qwen3.5-27B",
+  model: { ...EMPTY_MODEL },
+  train: defaultTrainDense(),
 };
 
 function $(id) { return document.getElementById(id); }
@@ -414,6 +461,17 @@ function pct(part, tot) {
   return (part / tot * 100).toFixed(1) + "%";
 }
 
+function detectFamily(m) {
+  const moe = (m.experts || 0) > 0;
+  const vit = (m.vitDepth || 0) > 0;
+  const gdn = (m.gdnKH || 0) > 0;
+  if (moe && vit && gdn) return { id: "qwen35_moe_vl", label: "Qwen3.5/3.6 MoE 多模态" };
+  if (!moe && vit && gdn) return { id: "qwen35_dense_vl", label: "Qwen3.5 Dense 多模态" };
+  if (vit && !gdn) return { id: "qwen3_vl", label: "Qwen3-VL Dense" };
+  if (moe && !vit) return { id: "qwen3_moe_text", label: "Qwen3 MoE 文本" };
+  return { id: "qwen3_dense_text", label: "Qwen3 Dense 文本" };
+}
+
 function parseConfig(cfg) {
   const text = cfg.text_config || cfg.language_config || cfg;
   const vis = cfg.vision_config || {};
@@ -437,7 +495,6 @@ function parseConfig(cfg) {
     gdnVD: pick(text, ["linear_value_head_dim"], 0),
     gdnConv: pick(text, ["linear_conv_kernel_dim"], 4),
     mtp: pick(text, ["mtp_num_hidden_layers"], 0),
-    topk: pick(text, ["num_experts_per_tok"], 8) || 8,
     tie: !!(cfg.tie_word_embeddings ?? text.tie_word_embeddings),
     attnGate: !!text.attn_output_gate,
     vitDepth: pick(vis, ["depth"], 0),
@@ -451,15 +508,34 @@ function parseConfig(cfg) {
     nPos: pick(vis, ["num_position_embeddings"], 0),
     layerTypes: text.layer_types || [],
     arch: (cfg.architectures || [cfg.model_type || ""]).join(", "),
+    modelType: cfg.model_type || text.model_type || "",
+    topk: pick(text, ["num_experts_per_tok"], 8) || 8,
   };
 }
 
-function countParams(model) {
-  const V = model.vocab, H = model.hidden, L = model.layers, E = model.experts, I = model.moeI;
+function compute(model, train) {
+  const p = { ...model, ...train };
+  const V = p.vocab, H = p.hidden, L = p.layers, E = p.experts, I = p.moeI;
+  const P = p.P;
+  const pOk = isNum(P) && P > 0;
+  const EP = 1;
+  const ulysses = 1;
+  const ring = 1;
+  const CP = 1;
+  const bw = 2, bg = 2, nAdam = 2, bAdam = 4;
+  const bReduce = 4;
+  const reduceScale = 2;
+  const mtp = isNum(p.mtp) ? Math.max(p.mtp, 0) : 0;
+  const topk = Math.max(p.topk || 8, 1);
+  const shareI = p.shareI || I;
+  const warns = [];
+  if (P == null) warns.push("P 为空，N/P、梯度无法计算");
+  else if (P === 0) warns.push("P = 0，无法做 N/P 除法，相关项为 null");
+  else if (P < 0) warns.push("P 为负数，N/P 相关项为 null");
+
   const embed = V * H;
-  const lm = model.tie ? 0 : V * H;
+  const lm = p.tie ? 0 : V * H;
   const finalNorm = H;
-  const shareI = model.shareI || I;
   let gateUp = 0, down = 0, router = 0, shared = 0, sharedGate = 0, denseMlp = 0;
   if (E > 0) {
     gateUp = E * H * 2 * I;
@@ -467,220 +543,230 @@ function countParams(model) {
     router = E * H;
     shared = 3 * H * shareI;
     sharedGate = H;
-  } else if (model.denseI > 0) {
-    denseMlp = 3 * H * model.denseI;
+  } else if (p.denseI > 0) {
+    denseMlp = 3 * H * p.denseI;
   }
   const moeOther = router + shared + sharedGate;
   const mlpPer = gateUp + down + moeOther + denseMlp;
-  const fullQ = H * model.nQ * model.headDim * (model.attnGate ? 2 : 1);
-  const fullK = H * model.nKV * model.headDim;
-  const fullV = H * model.nKV * model.headDim;
-  const fullO = model.nQ * model.headDim * H;
-  const fullQkNorm = 2 * model.headDim;
+
+  const fullQ = H * p.nQ * p.headDim * (p.attnGate ? 2 : 1);
+  const fullK = H * p.nKV * p.headDim;
+  const fullV = H * p.nKV * p.headDim;
+  const fullO = p.nQ * p.headDim * H;
+  const fullQkNorm = 2 * p.headDim;
   const fullAttn = fullQ + fullK + fullV + fullO + fullQkNorm;
-  const hasGdn = (model.gdnKH || 0) > 0;
-  const dk = (model.gdnKH || 0) * (model.gdnKD || 0);
-  const dv = (model.gdnVH || 0) * (model.gdnVD || 0);
+  const hasGdn = (p.gdnKH || 0) > 0;
+  const dk = (p.gdnKH || 0) * (p.gdnKD || 0);
+  const dv = (p.gdnVH || 0) * (p.gdnVD || 0);
   const gdn = hasGdn
-    ? H * (2 * dk + 2 * dv + 2 * model.gdnVH)
+    ? H * (2 * dk + 2 * dv + 2 * p.gdnVH)
       + dv * H
-      + model.gdnConv * (2 * dk + dv)
-      + 2 * model.gdnVH + model.gdnVD
+      + p.gdnConv * (2 * dk + dv)
+      + 2 * p.gdnVH + p.gdnVD
     : 0;
-  const types = (model.layerTypes || []).filter(Boolean);
+
   let nFull, nGdn;
+  const types = (p.layerTypes || []).filter(Boolean);
   if (!hasGdn) { nFull = L; nGdn = 0; }
   else if (types.length === L) {
     nFull = types.filter((t) => String(t).includes("full")).length;
     nGdn = L - nFull;
   } else {
-    nFull = model.fullInterval > 0 ? Math.floor(L / model.fullInterval) : 0;
+    nFull = p.fullInterval > 0 ? Math.floor(L / p.fullInterval) : 0;
     nGdn = L - nFull;
   }
   const attn = nFull * fullAttn + nGdn * gdn;
-  const mtp = model.mtp || 0;
-  const mtpN = mtp * (mlpPer + 2 * H + (hasGdn ? (fullAttn + gdn) / 2 : fullAttn));
-  const mlpLayersN = L * (mlpPer + 2 * H);
+  const layerNorm = 2 * H;
+  const mlpLayersN = L * (mlpPer + layerNorm);
+  const mtpN = mtp * (mlpPer + layerNorm + (hasGdn ? (fullAttn + gdn) / 2 : fullAttn));
   const textN = embed + lm + finalNorm + attn + mlpLayersN + mtpN;
 
-  let vit = 0, vitPatch = 0, vitBlock = 0, vitMerger = 0;
-  if (model.vitDepth > 0 && model.vitH > 0) {
-    const Hv = model.vitH, Iv = model.vitI, out = model.vitOut, sm = model.merge;
-    vitPatch = model.inCh * model.tPatch * model.patch * model.patch * Hv + Hv;
+  let vitPatch = 0, vitBlock = 0, vitMerger = 0, vit = 0;
+  if (p.vitDepth > 0 && p.vitH > 0) {
+    const Hv = p.vitH, Iv = p.vitI, out = p.vitOut, sm = p.merge;
+    vitPatch = p.inCh * p.tPatch * p.patch * p.patch * Hv + Hv;
     vitBlock = Hv * (Hv * 3) + (Hv * 3) + Hv * Hv + Hv + Hv * Iv + Iv + Iv * Hv + Hv + 2 * Hv;
-    vitMerger = Hv + (Hv * sm * sm) ** 2 + (Hv * sm * sm) + (Hv * sm * sm) * out + out + model.nPos * Hv;
-    vit = vitPatch + model.vitDepth * vitBlock + vitMerger;
+    vitMerger = Hv + (Hv * sm * sm) ** 2 + (Hv * sm * sm) + (Hv * sm * sm) * out + out + p.nPos * Hv;
+    if (!p.freezeVisual) vit = vitPatch + p.vitDepth * vitBlock + vitMerger;
   }
+
   const N = textN + vit;
-  const nExpert = E > 0 ? L * (gateUp + down) : 0;
-  return {
-    N, nExpert, nDense: N - nExpert, nFull, nGdn, vit, textN,
-    embed, lm, finalNorm, gateUp, down, router, shared, sharedGate, denseMlp, moeOther, mlpPer, mlpLayersN,
-    fullQ, fullK, fullV, fullO, fullQkNorm, fullAttn, gdn, attn, mtp, mtpN,
-    vitPatch, vitBlock, vitMerger, vitDepth: model.vitDepth || 0,
-    V, H, L, E, I, shareI, denseI: model.denseI || 0, dk, dv,
-    nQ: model.nQ, nKV: model.nKV, headDim: model.headDim, attnGate: !!model.attnGate, tie: !!model.tie,
-    topk: model.topk || 8,
-  };
-}
+  const nExpert = E > 0 ? (L + mtp) * (gateUp + down) : 0;
+  const perCard = pOk ? N / P : null;
+  const paramG = pOk ? perCard * bw / GIB : null;
+  const gradBf16G = pOk ? perCard * bg / GIB : null;
+  const gradG = pOk ? 2 * gradBf16G : null;
+  const adamG = pOk ? perCard * nAdam * bAdam / GIB : null;
+  const staticG = sumNum(paramG, adamG);
 
-function posOk(x) { return isNum(x) && x > 0; }
+  const expertNumel = gateUp + down;
+  const attnAvg = L ? (nFull * fullAttn + nGdn * gdn) / L : 0;
+  const layerNumel = expertNumel + moeOther + attnAvg + 2 * H;
+  const unitNumel = p.wrap ? layerNumel : (expertNumel || layerNumel);
+  const Ufull = unitNumel * bw / GIB;
+  const U = Ufull / EP;
 
-function compute(model, train) {
-  const p = countParams(model);
-  const isMoe = (model.experts || 0) > 0;
-  const TP = train.TP, PP = train.PP;
-  let EP = train.EP, ETP = train.ETP;
-  const warns = [];
-  if (!isMoe) {
-    if (posOk(EP) && EP !== 1) warns.push("dense 无路由专家，EP 按 1 计");
-    if (posOk(ETP) && ETP !== 1) warns.push("dense 无专家内部切分，ETP 按 1 计");
-    EP = 1;
-    ETP = 1;
+  let prefetch = p.prefetch;
+  let prefG;
+  if (prefetch == null) {
+    prefetch = 0;
+    prefG = 0;
+  } else if (prefetch < 0) {
+    warns.push("prefetch 为负数，动态内存为 null");
+    prefG = null;
+  } else {
+    prefG = prefetch * U;
   }
-  const checkDiv = (name, x) => {
-    if (x == null) warns.push(name + " 为空，切分无法计算");
-    else if (x === 0) warns.push(name + " = 0，无法做除法，相关项为 null");
-    else if (x < 0) warns.push(name + " 为负数，相关项为 null");
-  };
-  checkDiv("TP", TP);
-  checkDiv("PP", PP);
-  checkDiv("EP", EP);
-  checkDiv("ETP", ETP);
-  const splitOk = posOk(TP) && posOk(PP) && posOk(EP) && posOk(ETP);
-  const nRankDense = splitOk ? p.nDense / (TP * PP) : null;
-  const nRankExp = splitOk ? p.nExpert / (EP * ETP * PP) : null;
-  const perRank = sumNum(nRankDense, nRankExp);
-  const bw = train.bw || 2;
-  const Wd = isNum(nRankDense) ? nRankDense * bw / GIB : null;
-  const We = isNum(nRankExp) ? nRankExp * bw / GIB : null;
-  const W = sumNum(Wd, We);
-  const G = W;
-  const Gd = Wd;
-  const Ge = We;
-  const adam = isNum(perRank) ? perRank * 12 / GIB : null;
-  const AdamGpu = train.adamOff ? 0 : adam;
-  const staticWG = sumNum(W, G);
-  const staticFull = sumNum(staticWG, AdamGpu);
+  const agG = U;
+  const copyG = U;
+  const reduceInG = U * reduceScale;
+  const gmmG = (p.gmm && E > 0 && !p.wrap) ? U : 0;
+  const dynG = sumNum(agG, copyG, prefG, reduceInG, gmmG);
 
-  const mbs = train.mbs, prompt = train.prompt, resp = train.resp;
-  if (mbs == null) warns.push("mbs 为空，T 与高峰工作集为 null");
-  else if (mbs < 0) warns.push("mbs 为负数，T 与高峰工作集为 null");
-  if (prompt == null) warns.push("prompt 为空，T 与高峰工作集为 null");
-  else if (prompt < 0) warns.push("prompt 为负数");
-  if (resp == null) warns.push("response 为空，T 与高峰工作集为 null");
-  else if (resp < 0) warns.push("response 为负数");
-  const seq = (isNum(prompt) && prompt >= 0 && isNum(resp) && resp >= 0) ? prompt + resp : null;
-  const tOk = isNum(mbs) && mbs >= 0 && isNum(seq);
-  const T = tOk ? mbs * seq : null;
-  const V = p.V, H = p.H, L = p.L;
-  const Vloc = posOk(TP) ? V / TP : null;
-  const vocabWs = (isNum(T) && isNum(Vloc)) ? 2 * T * Vloc * 4 / GIB : null;
-  const entropyClone = train.entropy
-    ? (isNum(T) && isNum(Vloc) ? T * Vloc * bw / GIB : null)
-    : 0;
-  const recOk = !!train.recompute;
-  const actExtra = train.recompute
-    ? 0
-    : ((isNum(T) && H > 0 && L > 0) ? L * T * H * 2 / GIB : null);
-  const ws = sumNum(vocabWs, entropyClone, actExtra);
-  const peak = sumNum(staticFull, ws);
-  const dynG = sumNum(vocabWs, entropyClone);
-  const actG = actExtra;
-  const nKV = model.nKV || 0;
-  const tpIllegal = posOk(TP) && isNum(nKV) && nKV > 0 && TP > nKV;
-  const peakOk = recOk && !tpIllegal;
-  if (tpIllegal) warns.push("TP=" + TP + " > n_kv_heads=" + nKV);
-  else if (!train.recompute) warns.push("已关 recompute：高峰另加约 L×T×H×2");
-  if (isNum(PP) && PP > 1) warns.push("PP>1：静态按 PP 均分；词表按最后 stage 整份加上（中间 stage 没有词表项）");
+  const seq = p.seq;
+  const mbs = p.mbs;
+  const chunk = p.chunk;
+  let samplesFwd = null, seqLocal = null, tokens = null, hiddenG = null, skipG = 0, dispatchG = 0, actG = null;
+  const liveLayers = (p.recompute || p.offload) ? 1 : Math.max(L, 1);
+  if (seq == null) {
+    warns.push("seq 为空，激活值为 null");
+  } else if (seq < 0) {
+    warns.push("seq 为负数，激活值为 null");
+  } else {
+    seqLocal = seq / CP;
+    if (isNum(chunk) && chunk > 0) samplesFwd = chunk;
+    else if (mbs == null) warns.push("micro_batch_size 为空且 chunk_mbs 未>0，激活值为 null");
+    else if (mbs < 0) warns.push("micro_batch_size 为负数，激活值为 null");
+    else samplesFwd = mbs;
+    if (isNum(samplesFwd) && samplesFwd < 0) {
+      warns.push("B_fwd 为负数，激活值为 null");
+      samplesFwd = null;
+    }
+    if (isNum(samplesFwd)) {
+      tokens = samplesFwd * seqLocal;
+      hiddenG = tokens * H * 2 / GIB;
+      if (p.skipGdn && nGdn > 0 && !p.offload) {
+        const qkv = 2 * (p.gdnKH || 0) * (p.gdnKD || 0) + (p.gdnVH || 0) * (p.gdnVD || 0);
+        skipG = nGdn * tokens * qkv * 2 / GIB;
+      }
+      if (EP > 1 && E > 0) dispatchG = tokens * topk * H * 2 / GIB;
+      actG = liveLayers * hiddenG + skipG + dispatchG;
+    }
+  }
 
-  const nComm = 1
-    + (posOk(TP) && TP > 1 ? 1 : 0)
-    + (posOk(PP) && PP > 1 ? 1 : 0)
-    + (posOk(EP) && EP > 1 ? 1 : 0)
-    + (posOk(ETP) && ETP > 1 ? 1 : 0);
-  const hcclMB = train.hcclMB;
+  const nComm = 1 + (EP > 1 ? 1 : 0) + (CP > 1 ? 1 : 0);
+  const hcclMB = p.hcclMB;
   let hcclG = null;
   if (hcclMB == null) warns.push("HCCL_BUFFSIZE 为空，HCCL 为 null");
   else if (hcclMB < 0) warns.push("HCCL_BUFFSIZE 为负数，HCCL 为 null");
   else hcclG = nComm * hcclMB * 2 / 1024;
-  const fragG = train.fragG, ptaG = train.ptaG, osG = train.osG;
-  const runtimeG = sumNum(hcclG, fragG, ptaG, osG);
-  const deviceG = sumNum(peak, runtimeG);
+  const fragG = p.fragG, ptaG = p.ptaG, osG = p.osG;
+  const peakG = sumNum(staticG, gradG, dynG, actG);
+  const deviceG = sumNum(peakG, hcclG, fragG, ptaG, osG);
+
+  if (isNum(P) && P % EP !== 0) warns.push("EDP=1 时 P 应能被 EP 整除（efsdp=P/EP）");
+  if (p.nKV && ulysses > 1 && p.nKV % ulysses !== 0) warns.push("n_kv=" + p.nKV + " 不能被 Ulysses=" + ulysses + " 整除");
+  if (isNum(seq) && seq % CP !== 0) warns.push("seq=" + seq + " 不能被 CP=" + CP + " 整除，collator 会要求 pad");
 
   return {
-    ...p, TP, PP, EP, ETP, seq, T, Vloc, perRank, nRankDense, nRankExp,
-    nKV, tpIllegal, peakOk, recOk,
-    W, G, Wd, We, Gd, Ge, adam, AdamGpu, staticWG, staticFull,
-    vocabWs, entropyClone, actExtra, dynG, actG, ws, peak, warns, bw,
-    mbs, prompt, resp,
-    hcclG, nComm, hcclMB, fragG, ptaG, osG, runtimeG, deviceG,
+    N, P, EP, CP, ulysses, ring, perCard, paramG, gradBf16G, gradG, adamG, staticG,
+    nFull, nGdn, U, Ufull, agG, copyG, prefG, reduceInG, gmmG, dynG,
+    actG, skipG, dispatchG, hiddenG,
+    hcclG, nComm, hcclMB, fragG, ptaG, osG, peakG, deviceG,
+    nExpert, vit, L, H, V, E, I, mbs: p.mbs, seq, chunk: p.chunk, prefetch,
+    samplesFwd, tokens, seqLocal, liveLayers, mtp, wrap: !!p.wrap, bw, bReduce, reduceScale,
+    topk, warns, gateUp, down, expertNumel, unitNumel, moeOther, attnAvg,
+    embed, lm, finalNorm, router, shared, sharedGate, denseMlp, mlpPer, mlpLayersN,
+    fullAttn, gdn, attn, mtpN, textN, vitPatch, vitBlock, vitMerger, vitDepth: p.vitDepth || 0,
+    shareI, denseI: p.denseI || 0, nQ: p.nQ, nKV: p.nKV, headDim: p.headDim,
+    attnGate: !!p.attnGate, tie: !!p.tie, freezeVisual: !!p.freezeVisual,
+    dk, dv, gdnKH: p.gdnKH || 0, gdnVH: p.gdnVH || 0, gdnConv: p.gdnConv || 0, gdnVD: p.gdnVD || 0,
+    fullQ, fullK, fullV, fullO, fullQkNorm,
   };
+}
+
+function applyDenseScheme(r, model) {
+  const isMoe = (model.experts || 0) > 0;
+  r.isMoe = isMoe;
+  r.denseScheme = null;
+  r.uHeadG = null;
+  if (isMoe) return r;
+  const uHeadG = (model.vocab || 0) * (model.hidden || 0) * 2 / GIB;
+  const dynA = r.dynG;
+  const dynB = sumNum(uHeadG, 2 * uHeadG);
+  const peakA = sumNum(r.staticG, r.gradG, dynA, r.actG);
+  const peakB = sumNum(r.staticG, r.gradG, dynB, r.actG);
+  const pickB = !isNum(peakA) || (isNum(peakB) && peakB >= peakA);
+  r.uHeadG = uHeadG;
+  r.denseScheme = pickB ? "B" : "A";
+  if (pickB) {
+    r.dynG = dynB;
+    r.peakG = peakB;
+    r.deviceG = sumNum(r.peakG, r.hcclG, r.fragG, r.ptaG, r.osG);
+  }
+  return r;
 }
 
 function readForm() {
   const t = S.train;
-  t.TP = readNum("ovTP");
-  t.PP = readNum("ovPP");
-  t.EP = readNum("ovEP");
-  t.ETP = readNum("ovETP");
+  t.P = readNum("ovP");
+  t.EP = 1;
+  t.CP = 1;
+  t.ring = 1;
+  t.wrap = Number($("ovWrap").value) ? 1 : 0;
+  t.bReduce = 4;
   t.hbm = readNum("ovHbm");
   t.hcclMB = readNum("ovHccl");
+  t.mtp = readNum("ovMtp");
+  S.model.mtp = isNum(t.mtp) ? Math.max(t.mtp, 0) : 0;
+  t.seq = readNum("ovSeq");
   t.mbs = readNum("ovMbs");
-  t.prompt = readNum("ovPrompt");
-  t.resp = readNum("ovResp");
-  t.adamOff = $("ovAdamOff").checked;
+  t.chunk = readNum("ovChunk");
+  t.prefetch = readNum("ovPrefetch");
   t.recompute = $("ovRecompute").checked;
-  t.entropy = $("ovEntropy").checked;
-  if (!isMoeModel(S.model)) {
-    t.EP = 1;
-    t.ETP = 1;
-  }
-}
-
-function syncSplitUi() {
-  const moe = isMoeModel(S.model);
-  const ep = $("epField");
-  const etp = $("etpField");
-  if (ep) {
-    ep.hidden = !moe;
-    ep.style.display = moe ? "" : "none";
-  }
-  if (etp) {
-    etp.hidden = !moe;
-    etp.style.display = moe ? "" : "none";
-  }
-  if (!moe) {
-    S.train.EP = 1;
-    S.train.ETP = 1;
-    writeNum("ovEP", 1);
-    writeNum("ovETP", 1);
-  }
+  t.offload = $("ovOffload").checked;
+  t.skipGdn = $("ovSkipGdn").checked;
+  t.gmm = $("ovGmm").checked;
+  t.freezeVisual = $("ovFreeze").checked;
 }
 
 function writeForm() {
   const t = S.train;
   $("ovModel").value = S.modelName;
-  writeNum("ovTP", t.TP);
-  writeNum("ovPP", t.PP);
-  writeNum("ovEP", t.EP);
-  writeNum("ovETP", t.ETP);
+  writeNum("ovP", t.P);
+  $("ovWrap").value = String(t.wrap || 0);
   writeNum("ovHbm", t.hbm);
   writeNum("ovHccl", t.hcclMB);
+  writeNum("ovMtp", t.mtp);
+  writeNum("ovSeq", t.seq);
   writeNum("ovMbs", t.mbs);
-  writeNum("ovPrompt", t.prompt);
-  writeNum("ovResp", t.resp);
-  $("ovAdamOff").checked = !!t.adamOff;
+  writeNum("ovChunk", t.chunk);
+  writeNum("ovPrefetch", t.prefetch);
   $("ovRecompute").checked = !!t.recompute;
-  $("ovEntropy").checked = !!t.entropy;
-  syncSplitUi();
+  $("ovOffload").checked = !!t.offload;
+  $("ovSkipGdn").checked = !!t.skipGdn;
+  $("ovGmm").checked = !!t.gmm;
+  $("ovFreeze").checked = !!t.freezeVisual;
+  syncTypeUi();
+}
+
+function syncTypeUi() {
+  const moe = (S.model.experts || 0) > 0;
+  $("wrapField").style.display = moe ? "" : "none";
+  $("gmmRow").style.display = moe ? "" : "none";
+  $("splitHint").textContent = moe
+    ? "param=bf16 · reduce=fp32 · AdamW · EP=1 · CP=1。静态 N/P×10（不含梯度）；梯度作动态并 ×2；动态内存 6U；激活用完整 seq。"
+    : "param=bf16 · reduce=fp32 · AdamW · EP=1 · CP=1。静态 N/P×10（不含梯度）；梯度作动态并 ×2，不单列分片。Dense 两套高峰取较大者展示。";
+  $("prefetchHint").textContent = moe
+    ? "计算本层时预取后续层，每 +1 增加 1×U"
+    : "方案 A 每 +1 增加 1×U_层；方案 B 不加词表 prefetch。页面只展示较大高峰。";
 }
 
 function partsOf(r) {
   return [
-    { id: "weight", name: "权重", g: r.W, color: COLORS.weight },
-    { id: "adam", name: "优化器", g: r.AdamGpu, color: COLORS.adam },
-    { id: "grad", name: "梯度", g: r.G, color: COLORS.grad },
+    { id: "weight", name: "权重", g: r.paramG, color: COLORS.weight },
+    { id: "adam", name: "优化器", g: r.adamG, color: COLORS.adam },
+    { id: "grad", name: "梯度", g: r.gradG, color: COLORS.grad },
     { id: "dyn", name: "动态内存", g: r.dynG, color: COLORS.dyn },
     { id: "act", name: "激活值", g: r.actG, color: COLORS.act },
     { id: "hccl", name: "HCCL", g: r.hcclG, color: COLORS.hccl },
@@ -691,27 +777,19 @@ function partsOf(r) {
 }
 
 function render() {
-  syncSplitUi();
-  const r = compute(S.model, S.train);
+  const r = applyDenseScheme(compute(S.model, S.train), S.model);
   const parts = partsOf(r);
   const tot = r.deviceG;
   const hbm = S.train.hbm;
 
-  if (r.tpIllegal) {
-    $("vTotal").innerHTML = "非法";
-    $("vTotalSub").textContent = "TP=" + r.TP + " > n_kv_heads=" + r.nKV;
-  } else {
-    $("vTotal").innerHTML = isNum(tot) ? fmtG(tot) + "<span>GiB</span>" : "null";
-    $("vTotalSub").textContent = !isNum(tot)
-      ? "配置不完整或除数为 0，相关项为 null"
-      : (r.peakOk
-        ? "npu-smi Used 口径（含 HCCL / 碎片 / PTA / OS）"
-        : "npu-smi Used 口径 · 高峰仅下界");
-  }
+  $("vTotal").innerHTML = isNum(tot) ? fmtG(tot) + "<span>GiB</span>" : "null";
+  $("vTotalSub").textContent = isNum(tot)
+    ? "npu-smi Used 口径（含 HCCL / 碎片 / PTA / OS）"
+    : "配置不完整或除数为 0，相关项为 null";
   if (!isNum(hbm)) $("vRemain").textContent = "单卡容量为空，余量无法计算";
-  else if (!isNum(tot) || r.tpIllegal) $("vRemain").textContent = "预估为 null，余量无法计算";
+  else if (!isNum(tot)) $("vRemain").textContent = "预估为 null，余量无法计算";
   else $("vRemain").textContent = "相对单卡 " + hbm + " GiB · 余量 " + fmtG(hbm - tot) + " GiB";
-  $("hbmBar").innerHTML = !r.tpIllegal && isNum(tot) && tot > 0
+  $("hbmBar").innerHTML = isNum(tot) && tot > 0
     ? parts.map((p) => `<i style="width:${Math.max(0, (isNum(p.g) ? p.g : 0) / tot * 100)}%;background:${p.color}"></i>`).join("")
     : "";
 
@@ -719,15 +797,14 @@ function render() {
     `<div class="blk"><div class="n">${p.name}</div><div class="v">${mem(p.g)}</div><div class="p">${pct(p.g, tot)} of total</div></div>`
   ).join("");
 
-  const isMoe = (S.model.experts || 0) > 0;
   const chips = [
-    `<span class="chip ${isMoe ? "warn" : "ok"}">${isMoe ? "MOE" : "DENSE"}</span>`,
+    `<span class="chip ${r.isMoe ? "warn" : "ok"}">${r.isMoe ? "MOE" : "DENSE"}</span>`,
   ];
   if ((S.model.vitDepth || 0) > 0 || /[-_]?VL[-_]?/i.test(S.modelName)) {
     chips.push(`<span class="chip">VL</span>`);
   }
-  if (!isMoe) {
-    chips.push(`<span class="chip ok">按词表高峰</span>`);
+  if (!r.isMoe && r.denseScheme) {
+    chips.push(`<span class="chip ok">${r.denseScheme === "B" ? "按词表高峰" : "按层高峰"}</span>`);
   }
   $("chips").innerHTML = chips.join("");
   setErr((r.warns || []).join("；"));
@@ -736,28 +813,34 @@ function render() {
     `<li><div>${title}<div class="fml">${fml}</div></div><div class="sv">${val}</div></li>`;
   const leaf = (title, fml, val) =>
     `<div class="leaf"><div>${title}<div class="fml">${fml}</div></div><div class="sv">${val}</div></div>`;
-  const branch = (title, fml, val, inner) =>
-    `<details><summary><div class="sum"><div class="nm">${title}${fml ? `<div class="fml">${fml}</div>` : ""}</div><div class="sv">${val}</div></div></summary><div class="kids">${inner}</div></details>`;
+  const branch = (title, fml, val, inner, open) =>
+    `<details${open ? " open" : ""}><summary><div class="sum"><div class="nm">${title}${fml ? `<div class="fml">${fml}</div>` : ""}</div><div class="sv">${val}</div></div></summary><div class="kids">${inner}</div></details>`;
 
-  const wEq = !isNum(r.W)
-    ? `N_rank × 2 = ${r.perRank == null ? "null" : fmtN(r.perRank)} × 2 = null`
-    : `N_rank × 2 = ${fmtN(r.perRank)} × 2 / 1024³ = ${fmtG(r.W)} GiB`;
-  const gEq = !isNum(r.G)
-    ? `N_rank × 2 = null`
-    : `N_rank × 2 = ${fmtN(r.perRank)} × 2 / 1024³ = ${fmtG(r.G)} GiB`;
-  const oEq = S.train.adamOff
-    ? `Adam 在 CPU = 0 GiB`
-    : (!isNum(r.AdamGpu)
-      ? `N_rank × 12 = null`
-      : `N_rank × 12 = ${fmtN(r.perRank)} × 12 / 1024³ = ${fmtG(r.AdamGpu)} GiB`);
-  const dynEq = !isNum(r.vocabWs)
-    ? `2 × T × (V/TP) × 4 = 2 × ${r.T == null ? "null" : fmtN(r.T)} × ${r.Vloc == null ? "null" : fmtN(r.Vloc)} × 4 = null`
-    : `2 × T × (V/TP) × 4 = 2 × ${fmtN(r.T)} × ${fmtN(r.Vloc)} × 4 / 1024³ = ${fmtG(r.vocabWs)} GiB`;
-  const actEq = S.train.recompute
-    ? `full recompute = 0 GiB`
-    : (!isNum(r.actG)
-      ? `L × T × H × 2 = ${r.L} × ${r.T == null ? "null" : fmtN(r.T)} × ${r.H} × 2 = null`
-      : `L × T × H × 2 = ${r.L} × ${fmtN(r.T)} × ${r.H} × 2 / 1024³ = ${fmtG(r.actG)} GiB`);
+  const actEq = isNum(r.liveLayers) && isNum(r.samplesFwd) && isNum(r.seq)
+    ? `liveLayers × B × S × H × 2 = ${r.liveLayers} × ${r.samplesFwd} × ${r.seq} × ${r.H} × 2 / 1024³ = ${fmtG(r.actG)} GiB`
+    : `liveLayers × B × S × H × 2 = ${r.liveLayers} × ${r.samplesFwd == null ? "null" : r.samplesFwd} × ${r.seq == null ? "空" : r.seq} × ${r.H} × 2 = null`;
+  const useHead = !r.isMoe && r.denseScheme === "B";
+  const dynEq = useHead
+    ? `U_head + 2 U_head`
+    : `all-gather + copy_out + prefetch + foreach_reduce` + (r.isMoe ? ` + GMM` : ``);
+  const headNumel = r.V * r.H;
+  let uEq;
+  if (useHead) {
+    uEq = `U_head = V × H × 2 / 1024³ = ${fmtN(headNumel)} × 2 / 1024³ = ${fmtG(r.uHeadG)} GiB`;
+  } else if (!r.wrap && r.E > 0) {
+    uEq = `U = (gate_up + down) × 2 / 1024³ = ${fmtN(r.expertNumel)} × 2 / 1024³ = ${fmtG(r.Ufull)} GiB`;
+  } else {
+    uEq = `U = 一层 numel × 2 / 1024³ = ${fmtN(r.unitNumel)} × 2 / 1024³ = ${fmtG(r.Ufull)} GiB`;
+  }
+  const wEq = (!isNum(r.N) || !isNum(r.P) || r.P === 0)
+    ? `N/P × 2 = ${fmtN(r.N)} / ${r.P == null ? "空" : r.P} × 2 = null`
+    : `N/P × 2 = ${fmtN(r.N)} / ${r.P} × 2 = ${fmtN(r.N / r.P * 2)} B = ${fmtG(r.paramG)} GiB`;
+  const gEq = (!isNum(r.N) || !isNum(r.P) || r.P === 0)
+    ? `N/P × 4 = ${fmtN(r.N)} / ${r.P == null ? "空" : r.P} × 4 = null`
+    : `N/P × 4 = ${fmtN(r.N)} / ${r.P} × 4 = ${fmtN(r.N / r.P * 4)} B = ${fmtG(r.gradG)} GiB`;
+  const oEq = (!isNum(r.N) || !isNum(r.P) || r.P === 0)
+    ? `N/P × 8 = ${fmtN(r.N)} / ${r.P == null ? "空" : r.P} × 8 = null`
+    : `N/P × 8 = ${fmtN(r.N)} / ${r.P} × 8 = ${fmtN(r.N / r.P * 8)} B = ${fmtG(r.adamG)} GiB`;
   const hcclEq = !isNum(r.nComm) || !isNum(r.hcclMB)
     ? `n_comm × BUFFSIZE × 2 = ${r.nComm} × ${r.hcclMB == null ? "空" : r.hcclMB} × 2 = null`
     : `n_comm × BUFFSIZE × 2 = ${r.nComm} × ${r.hcclMB} × 2 = ${fmtN(r.nComm * r.hcclMB * 2)} MB = ${fmtG(r.hcclG)} GiB`;
@@ -800,79 +883,77 @@ function render() {
   textKids += branch("注意力", `${r.nFull} full + ${r.nGdn} GDN`, fmtN(r.attn), attnKids);
   if (r.mtp > 0) textKids += leaf("MTP", `${r.mtp} 层`, fmtN(r.mtpN));
   let vitKids;
-  if (r.vitDepth > 0) {
+  if (r.vitDepth > 0 && r.freezeVisual) {
+    vitKids = leaf("冻结", "不计入 N", "0");
+  } else if (r.vitDepth > 0) {
     vitKids =
       leaf("patch embed", `in_ch × t_patch × patch² × H_v + H_v`, fmtN(r.vitPatch)) +
       leaf(`${r.vitDepth} blocks`, `${r.vitDepth} × ${fmtN(r.vitBlock)}`, fmtN(r.vitDepth * r.vitBlock)) +
       leaf("merger + 位置编码", `merger + n_pos × H_v`, fmtN(r.vitMerger));
   }
-  const nExpLayer = r.gateUp + r.down;
-  const tpLab = r.TP == null ? "空" : r.TP;
-  const ppLab = r.PP == null ? "空" : r.PP;
-  const epLab = r.EP == null ? "空" : r.EP;
-  const etpLab = r.ETP == null ? "空" : r.ETP;
-  const rankTitle = r.E > 0
-    ? "N_rank = N_dense/(TP×PP) + N_expert/(EP×ETP×PP)"
-    : "N_rank = N/(TP×PP)";
-  const rankFml = r.E > 0
-    ? `${fmtN(r.nRankDense)} + ${fmtN(r.nRankExp)}`
-    : `${fmtN(r.N)} / (${tpLab}×${ppLab})`;
   const nTree =
     `<div class="tree">` +
-    branch(rankTitle, rankFml, fmtN(r.perRank),
-      branch("N_dense = N − N_expert", `${fmtN(r.N)} − ${fmtN(r.nExpert)}`, fmtN(r.nDense),
-        branch("N = Text + ViT", `${fmtN(r.textN)} + ${fmtN(r.vit)}`, fmtN(r.N),
-          branch("Text", r.mtp > 0 ? "词表 + MLP + 注意力 + MTP" : "词表 + MLP + 注意力", fmtN(r.textN), textKids) +
-          (vitKids
-            ? branch("ViT", "patch + blocks + merger", fmtN(r.vit), vitKids)
-            : leaf("ViT", "无视觉塔", "0")))) +
-      (r.E > 0
-        ? branch("N_expert = L × (gate_up + down)", `${r.L} × ${fmtN(nExpLayer)}`, fmtN(r.nExpert),
-            leaf("gate_up", `E × H × 2I`, fmtN(r.gateUp)) +
-            leaf("down", `E × I × H`, fmtN(r.down)) +
-            leaf("一层路由专家", `gate_up + down`, fmtN(nExpLayer)) +
-            leaf("L 层", `${r.L} × (gate_up + down)`, fmtN(r.nExpert)))
-        : leaf("N_expert", "无路由专家，EP=1", "0")) +
-      leaf("N_dense / (TP×PP)", `TP=${tpLab}　PP=${ppLab}`, fmtN(r.nRankDense)) +
-      (r.E > 0
-        ? leaf("N_expert / (EP×ETP×PP)", `EP=${epLab}　ETP=${etpLab}　PP=${ppLab}`, fmtN(r.nRankExp))
-        : "")) +
+    branch("N = Text + ViT", `${fmtN(r.textN)} + ${fmtN(r.vit)}`, fmtN(r.N),
+      branch("Text", `词表 + MLP + 注意力`, fmtN(r.textN), textKids) +
+      (vitKids
+        ? branch("ViT", r.freezeVisual ? "冻结" : "patch + blocks + merger", fmtN(r.vit), vitKids)
+        : leaf("ViT", "无视觉塔", "0"))) +
     `</div>`;
 
-  const dynLis =
-    li("T", `mbs × (prompt + response) = ${r.mbs == null ? "空" : r.mbs} × (${r.prompt == null ? "空" : r.prompt} + ${r.resp == null ? "空" : r.resp})`, r.T == null ? "null" : fmtN(r.T)) +
-    li("V/TP", `${fmtN(r.V)} / ${r.TP == null ? "空" : r.TP}`, r.Vloc == null ? "null" : fmtN(r.Vloc)) +
-    li("两份 fp32", `峰值同时活着的两块 [T, V/TP]`, "2 × 4 byte") +
-    (S.train.entropy ? li("entropy", `T × (V/TP) × 2`, mem(r.entropyClone)) : "");
+  const dynLis = useHead
+    ? li("未分片参数", `U_head`, mem(r.uHeadG)) +
+      li("foreach_reduce 输入", `2U_head　fp32`, mem(isNum(r.uHeadG) ? 2 * r.uHeadG : null))
+    : li("all-gather", `U`, mem(r.agG)) +
+      li("copy_out", `U`, mem(r.copyG)) +
+      li("prefetch", `prefetch × U　prefetch=${r.prefetch}`, mem(r.prefG)) +
+      li("foreach_reduce 输入", `2U　fp32`, mem(r.reduceInG)) +
+      (r.isMoe ? li("GMM grad_weight", r.gmmG ? `U` : `未启用`, mem(r.gmmG)) : "");
   const dynKids =
+    `<div class="nline">${uEq}</div>` +
     `<div class="tree">` +
-    branch("CE峰值", "两份 [T, V/TP] fp32", mem(r.vocabWs), `<ul class="sub">` + dynLis + `</ul>`) +
+    branch("动态模块", "", mem(r.dynG), `<ul class="sub">` + dynLis + `</ul>`) +
     `</div>`;
 
   $("mapBody").innerHTML = [
-    partBlock("权重", COLORS.weight, r.W, wEq, nTree),
-    partBlock("优化器", COLORS.adam, r.AdamGpu, oEq,
-      `<ul class="sub">${li("Adam", S.train.adamOff ? "在 CPU，不计入 allocated" : "12 byte/参数", mem(r.AdamGpu))}</ul>`),
-    partBlock("梯度", COLORS.grad, r.G, gEq,
-      `<p class="note">与权重同体积。</p>`),
-    partBlock("动态内存", COLORS.dyn, r.dynG, dynEq, dynKids),
-    partBlock("激活值", COLORS.act, r.actG, actEq,
+    partBlock("权重", COLORS.weight, r.paramG,
+      wEq,
+      nTree),
+    partBlock("优化器", COLORS.adam, r.adamG,
+      oEq,
+      `<ul class="sub">${li("AdamW", `exp_avg + exp_avg_sq，两份 fp32`, mem(r.adamG))}</ul>`),
+    partBlock("梯度", COLORS.grad, r.gradG,
+      gEq,
+      `<p class="note">reduce-scatter 且 reduce_dtype=fp32 时，各层 reduce 输出是一份 fp32 梯度分片。</p>`),
+    partBlock("动态内存", COLORS.dyn, r.dynG,
+      dynEq,
+      dynKids),
+    partBlock("激活值", COLORS.act, r.actG,
+      actEq,
       `<ul class="sub">` +
-      (S.train.recompute
-        ? li("层激活", `full recompute，不随 L 累加`, "0 GiB")
-        : li("层激活", `L × T × H × 2`, mem(r.actG))) +
+      li("residual", `liveLayers=${r.liveLayers}，B=${r.samplesFwd == null ? "null" : r.samplesFwd}，S=${r.seq == null ? "空" : r.seq}，H=${r.H}`, mem(isNum(r.hiddenG) ? r.hiddenG * r.liveLayers : null)) +
+      (r.skipG > 0 ? li("skip_gdn", `offload 关时计入`, mem(r.skipG)) : "") +
+      (r.dispatchG > 0 ? li("EP dispatch", `T × topk × H × 2`, mem(r.dispatchG)) : "") +
       `</ul>`),
-    partBlock("HCCL", COLORS.hccl, r.hcclG, hcclEq, ""),
-    partBlock("内存碎片", COLORS.frag, r.fragG, `1 GiB（预估）`, ""),
-    partBlock("PTA", COLORS.pta, r.ptaG, `1 GiB（预估）`, ""),
-    partBlock("Device OS", COLORS.os, r.osG, `3.5 GiB（预估）`, ""),
+    partBlock("HCCL", COLORS.hccl, r.hcclG,
+      hcclEq,
+      ""),
+    partBlock("内存碎片", COLORS.frag, r.fragG,
+      `1 GiB（预估）`,
+      ""),
+    partBlock("PTA", COLORS.pta, r.ptaG,
+      `1 GiB（预估）`,
+      ""),
+    partBlock("Device OS", COLORS.os, r.osG,
+      `3.5 GiB（预估）`,
+      ""),
   ].join("");
 
   $("mapFoot").textContent = "";
 }
 
-function partBlock(name, color, g, eq, inner) {
-  return `<div class="part"><div class="part-h"><div><b style="background:${color}"></b>${name}</div><div class="g">${mem(g)}</div></div><div class="eq">${eq}</div>${inner}</div>`;
+function partBlock(name, color, g, eq, inner, right) {
+  const shown = right != null ? right : mem(g);
+  return `<div class="part"><div class="part-h"><div><b style="background:${color}"></b>${name}</div><div class="g">${shown}</div></div><div class="eq">${eq}</div>${inner}</div>`;
 }
 
 function setErr(msg) { $("err").textContent = msg || ""; }
@@ -883,7 +964,7 @@ function fillModelSelect() {
     g.models.map((name) => `<option value="${name}">${name}</option>`).join("") +
     `</optgroup>`
   ).join("");
-  if (!allQwenModels().includes(S.modelName)) S.modelName = "Qwen3.5-35B-A3B (12L)";
+  if (!allQwenModels().includes(S.modelName)) S.modelName = "Qwen3.5-27B";
   $("ovModel").value = S.modelName;
 }
 
@@ -914,7 +995,9 @@ function applyParsedModel(m, resetTrain) {
     m.layerTypes = defaultLayerTypes(m.layers, m.fullInterval || 4);
   }
   S.model = m;
-  if (resetTrain) S.train = defaultTrain(m);
+  if (resetTrain) S.train = (m.experts || 0) > 0 ? defaultTrainMoe() : defaultTrainDense();
+  S.train.mtp = 0;
+  S.model.mtp = 0;
   writeForm();
   render();
 }
@@ -923,30 +1006,24 @@ let fetchGen = 0;
 async function loadWeight(repo, resetTrain) {
   const gen = ++fetchGen;
   S.weightRepo = repo;
-  if (repo === "local:12L") {
-    setErr("");
-    applyParsedModel({ ...DEFAULT_12L, layerTypes: defaultLayerTypes(12, 4) }, resetTrain);
-    return;
-  }
   if (repo === "local:20L") {
     setErr("");
-    applyParsedModel({ ...DEFAULT_20L, layerTypes: defaultLayerTypes(20, 4) }, resetTrain);
+    $("cfgHint").textContent = "本地 20 层预置，不从 ModelScope 拉取。";
+    applyParsedModel({ ...DEFAULT_35B, layerTypes: defaultLayerTypes(20, 4) }, resetTrain);
     return;
   }
-  if (repo === "local:27B") {
-    setErr("");
-    applyParsedModel({ ...DEFAULT_27B, layerTypes: defaultLayerTypes(64, 4) }, resetTrain);
-    return;
-  }
+  $("cfgHint").textContent = "正在从 ModelScope 拉取 config.json…";
   setErr("");
   try {
     const cfg = await fetchRemoteConfig(repo);
     if (gen !== fetchGen) return;
     const m = parseConfig(cfg);
     if (!m.hidden || !m.layers) throw new Error("未能读取 hidden_size / num_hidden_layers");
+    $("cfgHint").textContent = "权重数据实时从 ModelScope 拉取。MTP 已按训练常用覆盖为 0。";
     applyParsedModel({ ...EMPTY_MODEL, ...m }, resetTrain);
   } catch (e) {
     if (gen !== fetchGen) return;
+    $("cfgHint").textContent = "权重数据实时从 ModelScope 拉取。";
     setErr("拉取 " + repo + " 的 config.json 失败：" + (e && e.message ? e.message : e));
   }
 }
@@ -958,9 +1035,7 @@ function onModelPicked() {
 }
 
 function onCustomRepo() {
-  const raw = String($("ovCustomRepo").value || "").trim()
-    .replace(/^https?:\/\/(www\.)?modelscope\.cn\/models\//, "")
-    .replace(/\/+$/, "");
+  const raw = String($("ovCustomRepo").value || "").trim().replace(/^https?:\/\/(www\.)?modelscope\.cn\/models\//, "").replace(/\/+$/, "");
   if (!raw || !raw.includes("/")) {
     setErr("自定义仓库请写成 owner/name，例如 Qwen/Qwen3.5-9B");
     return;
@@ -973,10 +1048,6 @@ function onCustomRepo() {
   loadWeight(raw, true);
 }
 
-(function applyQueryModel() {
-  const q = new URLSearchParams(location.search).get("model");
-  if (q && allQwenModels().includes(q)) S.modelName = q;
-})();
 fillModelSelect();
 $("ovModel").addEventListener("change", onModelPicked);
 $("ovCustomRepo").addEventListener("keydown", (e) => {
@@ -984,13 +1055,6 @@ $("ovCustomRepo").addEventListener("keydown", (e) => {
     e.preventDefault();
     onCustomRepo();
   }
-});
-$("mapBody").addEventListener("click", (e) => {
-  const sum = e.target.closest(".tree summary");
-  if (!sum) return;
-  e.preventDefault();
-  const d = sum.parentElement;
-  if (d && d.tagName === "DETAILS") d.open = !d.open;
 });
 document.querySelectorAll("input, select").forEach((el) => {
   if (el.id === "ovModel" || el.id === "ovCustomRepo") return;
