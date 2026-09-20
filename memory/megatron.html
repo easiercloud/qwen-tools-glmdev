@@ -95,7 +95,7 @@
       text-transform: uppercase; color: var(--accent);
     }
     h3.sec { margin: 0 0 12px; font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
-    .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
     .chip {
       font-size: 12px; font-weight: 600; background: #eef2f0; color: #3d4d46;
       border-radius: 99px; padding: 4px 10px;
@@ -103,7 +103,8 @@
     .chip.ok { background: #e4f5ea; color: var(--ok); }
     .chip.warn { background: #fff1d6; color: var(--warn); }
     .chip.bad { background: #fde8e8; color: var(--bad); }
-    .err { color: var(--bad); font-size: 13px; min-height: 1.1em; margin-top: 8px; }
+    .err { color: var(--bad); font-size: 13px; margin-top: 8px; }
+    .err:empty { display: none; }
     .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
     .fields.one { grid-template-columns: 1fr; }
     label.f { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
@@ -223,9 +224,6 @@
         <p class="kicker">Configuration</p>
         <label class="f">模型
           <select id="ovModel"></select>
-        </label>
-        <label class="f" style="margin-top:10px;">自定义 ModelScope 仓库
-          <input id="ovCustomRepo" type="text" placeholder="Qwen/Qwen3.5-9B" autocomplete="off" />
         </label>
         <div class="chips" id="chips"></div>
         <div class="err" id="err"></div>
@@ -402,10 +400,10 @@ function repoForModel(name) {
 const DEFAULT_20L = { ...DEFAULT_12L, layers: 20 };
 
 const S = {
-  modelName: "Qwen3.5-35B-A3B (12L)",
-  weightRepo: "local:12L",
-  model: { ...DEFAULT_12L, layerTypes: defaultLayerTypes(12, 4) },
-  train: defaultTrain(DEFAULT_12L),
+  modelName: "Qwen3.5-27B",
+  weightRepo: "local:27B",
+  model: { ...DEFAULT_27B, layerTypes: defaultLayerTypes(64, 4) },
+  train: defaultTrain(DEFAULT_27B),
 };
 
 function $(id) { return document.getElementById(id); }
@@ -916,7 +914,7 @@ function fillModelSelect() {
     g.models.map((name) => `<option value="${name}">${name}</option>`).join("") +
     `</optgroup>`
   ).join("");
-  if (!allQwenModels().includes(S.modelName)) S.modelName = "Qwen3.5-35B-A3B (12L)";
+  if (!allQwenModels().includes(S.modelName)) S.modelName = "Qwen3.5-27B";
   $("ovModel").value = S.modelName;
 }
 
@@ -987,24 +985,7 @@ async function loadWeight(repo, resetTrain) {
 
 function onModelPicked() {
   S.modelName = $("ovModel").value;
-  $("ovCustomRepo").value = "";
   loadWeight(repoForModel(S.modelName), true);
-}
-
-function onCustomRepo() {
-  const raw = String($("ovCustomRepo").value || "").trim()
-    .replace(/^https?:\/\/(www\.)?modelscope\.cn\/models\//, "")
-    .replace(/\/+$/, "");
-  if (!raw || !raw.includes("/")) {
-    setErr("自定义仓库请写成 owner/name，例如 Qwen/Qwen3.5-9B");
-    return;
-  }
-  const name = raw.split("/")[1];
-  if (allQwenModels().includes(name)) {
-    S.modelName = name;
-    fillModelSelect();
-  }
-  loadWeight(raw, true);
 }
 
 (function applyQueryModel() {
@@ -1013,12 +994,6 @@ function onCustomRepo() {
 })();
 fillModelSelect();
 $("ovModel").addEventListener("change", onModelPicked);
-$("ovCustomRepo").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    onCustomRepo();
-  }
-});
 $("mapBody").addEventListener("click", (e) => {
   const sum = e.target.closest(".tree summary");
   if (!sum) return;
@@ -1027,7 +1002,7 @@ $("mapBody").addEventListener("click", (e) => {
   if (d && d.tagName === "DETAILS") d.open = !d.open;
 });
 document.querySelectorAll("input, select").forEach((el) => {
-  if (el.id === "ovModel" || el.id === "ovCustomRepo") return;
+  if (el.id === "ovModel") return;
   el.addEventListener("input", () => { readForm(); render(); });
   el.addEventListener("change", () => { readForm(); render(); });
 });

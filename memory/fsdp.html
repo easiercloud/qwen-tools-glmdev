@@ -105,14 +105,15 @@
     }
     button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
     button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
     .chip {
       font-size: 12px; font-weight: 600; background: #eef2f0; color: #3d4d46;
       border-radius: 99px; padding: 4px 10px;
     }
     .chip.ok { background: #e4f5ea; color: var(--ok); }
     .chip.warn { background: #fff1d6; color: var(--warn); }
-    .err { color: var(--bad); font-size: 13px; min-height: 1.1em; margin-top: 8px; }
+    .err { color: var(--bad); font-size: 13px; margin-top: 8px; }
+    .err:empty { display: none; }
     .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
     .fields.one { grid-template-columns: 1fr; }
     label.f { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
@@ -233,11 +234,6 @@
         <label class="f">模型
           <select id="ovModel"></select>
         </label>
-        <label class="f" style="margin-top:10px;">自定义 ModelScope 仓库
-          <span class="hint">任意 owner/name，回车拉取。</span>
-          <input id="ovCustomRepo" type="text" placeholder="Qwen/Qwen3.5-9B" autocomplete="off" />
-        </label>
-        <div class="muted" id="cfgHint" style="margin-top:8px;">权重数据实时从 ModelScope 拉取。</div>
         <div class="chips" id="chips"></div>
         <div class="err" id="err"></div>
       </section>
@@ -254,16 +250,7 @@
             </select>
           </label>
           <label class="f">HCCL_BUFFSIZE MB<input id="ovHccl" type="number" min="0" step="1" /></label>
-        </div>
-        <p class="hint" id="splitHint" style="margin:8px 0 0;">param=bf16 · reduce=fp32 · AdamW · EP=1 · CP=1。静态 N/P×10（不含梯度）；梯度作动态并 ×2。</p>
-      </section>
-
-      <section class="card">
-        <h3 class="sec">MTP 层</h3>
-        <div class="fields one">
-          <label class="f">MTP 层数<span class="hint">训练常用 0</span>
-            <input id="ovMtp" type="number" min="0" step="1" />
-          </label>
+          <label class="f">MTP 层数<input id="ovMtp" type="number" min="0" step="1" /></label>
         </div>
       </section>
 
@@ -274,14 +261,13 @@
           <label class="f">micro_batch_size<input id="ovMbs" type="number" min="0" step="1" /></label>
           <label class="f">chunk_mbs<input id="ovChunk" type="number" min="0" step="1" /></label>
         </div>
-        <p class="hint" style="margin:8px 0 0;">填真实 token 数，不要用 yaml 的 cutoff_len。chunk_mbs&gt;0 时 B_fwd 取该值。</p>
       </section>
 
       <section class="card">
         <h3 class="sec">显存优化</h3>
-        <label class="f">prefetch<span class="hint" id="prefetchHint">计算本层时预取后续层，每 +1 增加 1×U</span>
-          <input id="ovPrefetch" type="number" min="0" step="1" />
-        </label>
+        <div class="fields one">
+          <label class="f">prefetch<input id="ovPrefetch" type="number" min="0" step="1" /></label>
+        </div>
         <div class="checks">
           <label class="chk"><input id="ovRecompute" type="checkbox" /> recompute 层激活</label>
           <label class="chk"><input id="ovOffload" type="checkbox" /> activation offload</label>
@@ -753,12 +739,6 @@ function syncTypeUi() {
   const moe = (S.model.experts || 0) > 0;
   $("wrapField").style.display = moe ? "" : "none";
   $("gmmRow").style.display = moe ? "" : "none";
-  $("splitHint").textContent = moe
-    ? "param=bf16 · reduce=fp32 · AdamW · EP=1 · CP=1。静态 N/P×10（不含梯度）；梯度作动态并 ×2；动态内存 6U；激活用完整 seq。"
-    : "param=bf16 · reduce=fp32 · AdamW · EP=1 · CP=1。静态 N/P×10（不含梯度）；梯度作动态并 ×2，不单列分片。Dense 两套高峰取较大者展示。";
-  $("prefetchHint").textContent = moe
-    ? "计算本层时预取后续层，每 +1 增加 1×U"
-    : "方案 A 每 +1 增加 1×U_层；方案 B 不加词表 prefetch。页面只展示较大高峰。";
 }
 
 function partsOf(r) {
@@ -1007,56 +987,31 @@ async function loadWeight(repo, resetTrain) {
   S.weightRepo = repo;
   if (repo === "local:20L") {
     setErr("");
-    $("cfgHint").textContent = "本地 20 层预置，不从 ModelScope 拉取。";
     applyParsedModel({ ...DEFAULT_35B, layerTypes: defaultLayerTypes(20, 4) }, resetTrain);
     return;
   }
-  $("cfgHint").textContent = "正在从 ModelScope 拉取 config.json…";
   setErr("");
   try {
     const cfg = await fetchRemoteConfig(repo);
     if (gen !== fetchGen) return;
     const m = parseConfig(cfg);
     if (!m.hidden || !m.layers) throw new Error("未能读取 hidden_size / num_hidden_layers");
-    $("cfgHint").textContent = "权重数据实时从 ModelScope 拉取。MTP 已按训练常用覆盖为 0。";
     applyParsedModel({ ...EMPTY_MODEL, ...m }, resetTrain);
   } catch (e) {
     if (gen !== fetchGen) return;
-    $("cfgHint").textContent = "权重数据实时从 ModelScope 拉取。";
     setErr("拉取 " + repo + " 的 config.json 失败：" + (e && e.message ? e.message : e));
   }
 }
 
 function onModelPicked() {
   S.modelName = $("ovModel").value;
-  $("ovCustomRepo").value = "";
   loadWeight(repoForModel(S.modelName), true);
-}
-
-function onCustomRepo() {
-  const raw = String($("ovCustomRepo").value || "").trim().replace(/^https?:\/\/(www\.)?modelscope\.cn\/models\//, "").replace(/\/+$/, "");
-  if (!raw || !raw.includes("/")) {
-    setErr("自定义仓库请写成 owner/name，例如 Qwen/Qwen3.5-9B");
-    return;
-  }
-  const name = raw.split("/")[1];
-  if (allQwenModels().includes(name)) {
-    S.modelName = name;
-    fillModelSelect();
-  }
-  loadWeight(raw, true);
 }
 
 fillModelSelect();
 $("ovModel").addEventListener("change", onModelPicked);
-$("ovCustomRepo").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    onCustomRepo();
-  }
-});
 document.querySelectorAll("input, select").forEach((el) => {
-  if (el.id === "ovModel" || el.id === "ovCustomRepo") return;
+  if (el.id === "ovModel") return;
   el.addEventListener("input", () => { readForm(); render(); });
   el.addEventListener("change", () => { readForm(); render(); });
 });
