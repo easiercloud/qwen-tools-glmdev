@@ -105,6 +105,25 @@
     .chip.bad { background: #fde8e8; color: var(--bad); }
     .err { color: var(--bad); font-size: 13px; margin-top: 8px; }
     .err:empty { display: none; }
+    .ccfg { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 10px; }
+    .ccfg summary { cursor: pointer; font: 600 13px/1.4 var(--sans); color: var(--accent); }
+    .ccfg .hint { margin: 8px 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .ccfg textarea {
+      width: 100%; min-height: 130px; resize: vertical;
+      font: 500 12px/1.5 var(--mono); padding: 8px 11px;
+      border: 1px solid var(--line); border-radius: 10px;
+      background: rgba(255,255,255,.92); color: var(--text);
+    }
+    .ccfg textarea:focus {
+      outline: none; border-color: #5ea089;
+      box-shadow: 0 0 0 3px rgba(31, 107, 86, 0.14);
+    }
+    .ccfg button {
+      margin-top: 8px; height: 34px; padding: 0 14px;
+      border: 1px solid var(--accent); border-radius: 10px;
+      background: var(--accent); color: #fff; font: 600 13px/1 var(--sans); cursor: pointer;
+    }
+    .ccfg button:hover { opacity: .9; }
     .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
     .fields.one { grid-template-columns: 1fr; }
     label.f { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
@@ -201,8 +220,9 @@
     <div class="header-inner">
       <div class="header-row">
         <div>
-          <a class="home" href="../">← QWEN 小工具</a>
+          <a class="home" href="../">← 模型训练工具台</a>
           <h1>Megatron 显存建模</h1>
+          <p>Qwen 与 GLM-5.2/5.3 训练静态显存；GLM 参数账本按官方 checkpoint 校验，未 profile 的整卡峰值明确标为下界。</p>
         </div>
         <div class="top-actions">
           <a class="top-link" href="https://github.com/zyang6/qwen-tools" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库">
@@ -222,11 +242,20 @@
     <aside class="side">
       <section class="card">
         <p class="kicker">Configuration</p>
-        <label class="f">模型
+        <label class="f">模型系列
+          <select id="ovSeries"></select>
+        </label>
+        <label class="f" style="margin-top:12px;">模型
           <select id="ovModel"></select>
         </label>
         <div class="chips" id="chips"></div>
         <div class="err" id="err"></div>
+        <details class="ccfg" id="customCfgBox">
+          <summary>自定义 config.json</summary>
+          <p class="hint">粘贴 HuggingFace / ModelScope 的 config.json；GLM MoE-DSA 走专用组件账本，其他架构走通用公式。</p>
+          <textarea id="customCfg" rows="8" spellcheck="false" placeholder='{"architectures": ["GlmMoeDsaForCausalLM"], "model_type": "glm_moe_dsa", ...}'></textarea>
+          <button id="customCfgLoad" type="button">加载自定义 config</button>
+        </details>
       </section>
 
       <section class="card">
@@ -234,11 +263,13 @@
         <div class="fields">
           <label class="f">TP<input id="ovTP" type="number" min="0" step="1" /></label>
           <label class="f">PP<input id="ovPP" type="number" min="0" step="1" /></label>
+          <label class="f">CP<input id="ovCP" type="number" min="0" step="1" /></label>
           <label class="f" id="epField">EP<input id="ovEP" type="number" min="0" step="1" /></label>
           <label class="f" id="etpField">ETP<input id="ovETP" type="number" min="0" step="1" /></label>
           <label class="f">单卡容量 GiB<input id="ovHbm" type="number" min="0" step="1" /></label>
           <label class="f">HCCL_BUFFSIZE MB<input id="ovHccl" type="number" min="0" step="1" /></label>
           <label class="f">MTP 层数<input id="ovMtp" type="number" min="0" step="1" /></label>
+          <label class="f">层数（减层覆盖）<input id="ovLayers" type="number" min="1" step="1" /></label>
         </div>
       </section>
 
@@ -248,13 +279,22 @@
           <label class="f">mbs / 卡<input id="ovMbs" type="number" min="0" step="1" /></label>
           <label class="f">prompt<input id="ovPrompt" type="number" min="0" step="1" /></label>
           <label class="f">response<input id="ovResp" type="number" min="0" step="1" /></label>
+          <label class="f">CE 分块数<input id="ovCeChunks" type="number" min="1" step="1" /></label>
         </div>
       </section>
 
       <section class="card">
         <h3 class="sec">显存优化</h3>
+        <div class="fields one">
+          <label class="f">优化器
+            <select id="ovOptimizer">
+              <option value="adam">Adam（actor update）</option>
+              <option value="muon">Muon + AdamW（预训练估算）</option>
+            </select>
+          </label>
+        </div>
         <div class="checks">
-          <label class="chk"><input id="ovAdamOff" type="checkbox" /> Adam 在 CPU</label>
+          <label class="chk"><input id="ovAdamOff" type="checkbox" /> 优化器状态在 CPU</label>
           <label class="chk"><input id="ovRecompute" type="checkbox" /> full recompute</label>
           <label class="chk"><input id="ovEntropy" type="checkbox" /> 算 entropy</label>
         </div>
@@ -284,6 +324,8 @@
     </main>
   </div>
 
+<script src="model-catalog.js"></script>
+<script src="glm-modeling.js"></script>
 <script>
 const GIB = 1024 ** 3;
 const COLORS = {
@@ -332,78 +374,54 @@ function isMoeModel(model) { return (model && model.experts || 0) > 0; }
 
 function defaultTrain(model) {
   const moe = isMoeModel(model);
+  const glm = model && model.family === "glm";
   const nKV = (model && model.nKV) || 0;
   const denseTP = nKV > 0 ? Math.min(4, nKV) : 4;
   return {
-    TP: moe ? 2 : denseTP, PP: 1, EP: moe ? 8 : 1, ETP: 1,
-    mbs: 1, prompt: 1024, resp: 2048,
+    TP: glm ? 4 : (moe ? 2 : denseTP), PP: glm ? 8 : 1, CP: glm ? 8 : 1,
+    EP: glm ? 32 : (moe ? 8 : 1), ETP: 1,
+    mbs: 1, prompt: glm ? 4096 : 1024, resp: glm ? 4096 : 2048,
     adamOff: true,
+    optimizer: glm ? "muon" : "adam",
+    ceChunks: glm ? 4 : 1,
     recompute: true, recLayers: 1,
     entropy: false,
-    bw: 2, hbm: 64, hcclMB: 200, mtp: 0,
+    bw: 2, hbm: glm ? 80 : 64, hcclMB: 200, mtp: (model && model.mtp) || 0,
     fragG: 1, ptaG: 1, osG: 3.5,
   };
 }
 
-const QWEN_GROUPS = [
-  {
-    label: "Qwen3.8",
-    models: ["Qwen3.8-27B", "Qwen3.8-2.4T-A95B"],
-  },
-  {
-    label: "Qwen3.6",
-    models: ["Qwen3.6-27B", "Qwen3.6-35B-A3B", "Qwen3.6-35B-A3B (20L)"],
-  },
-  {
-    label: "Qwen3.5",
-    models: [
-      "Qwen3.5-35B-A3B (12L)",
-      "Qwen3.5-0.8B", "Qwen3.5-2B", "Qwen3.5-4B", "Qwen3.5-9B", "Qwen3.5-27B",
-      "Qwen3.5-35B-A3B", "Qwen3.5-122B-A10B", "Qwen3.5-397B-A17B",
-    ],
-  },
-  {
-    label: "Qwen3 VL",
-    models: [
-      "Qwen3-VL-8B-Instruct", "Qwen3-VL-32B-Instruct",
-      "Qwen3-VL-30B-A3B-Instruct", "Qwen3-VL-235B-A22B-Instruct",
-    ],
-  },
-  {
-    label: "Qwen3",
-    models: [
-      "Qwen3-0.6B", "Qwen3-1.7B", "Qwen3-4B", "Qwen3-8B", "Qwen3-14B", "Qwen3-32B",
-      "Qwen3-4B-Instruct", "Qwen3-8B-Instruct", "Qwen3-14B-Instruct", "Qwen3-32B-Instruct",
-      "Qwen3-30B-A3B", "Qwen3-30B-A3B-Thinking-2507",
-      "Qwen3-235B-A22B", "Qwen3-235B-A22B-Instruct-2507",
-      "Qwen3-Next-80B-A3B-Instruct",
-      "Qwen3-Coder-30B-A3B-Instruct", "Qwen3-Coder-480B-A35B-Instruct",
-    ],
-  },
-  {
-    label: "Qwen2.5 VL",
-    models: ["Qwen2.5-VL-7B-Instruct", "Qwen2.5-VL-72B-Instruct"],
-  },
-];
-
-function allQwenModels() {
-  return QWEN_GROUPS.flatMap((g) => g.models);
-}
-
-function repoForModel(name) {
-  if (name === "Qwen3.5-35B-A3B (12L)") return "local:12L";
-  if (name === "Qwen3.6-35B-A3B (20L)") return "local:20L";
-  if (name === "Qwen3.5-27B") return "local:27B";
-  return "Qwen/" + name;
-}
-
 const DEFAULT_20L = { ...DEFAULT_12L, layers: 20 };
 
+function catalogModel(modelId) {
+  return MemoryModelCatalog.findModel(modelId);
+}
+
+function localModelForEntry(entry) {
+  if (!entry) return null;
+  if (entry.capabilities.vendor === "zhipuai") {
+    const cfg = GlmMemoryModel.makePresetConfig(entry.modelId);
+    return cfg ? GlmMemoryModel.parseConfig(cfg, { modelId: entry.modelId }) : null;
+  }
+  if (entry.source === "local:12L") return { ...DEFAULT_12L, layerTypes: defaultLayerTypes(12, 4) };
+  if (entry.source === "local:20L") return { ...DEFAULT_20L, layerTypes: defaultLayerTypes(20, 4) };
+  if (entry.source === "local:27B") return { ...DEFAULT_27B, layerTypes: defaultLayerTypes(64, 4) };
+  return null;
+}
+
+const INITIAL_ENTRY = catalogModel("glm-5.2");
+const INITIAL_MODEL = localModelForEntry(INITIAL_ENTRY);
+
 const S = {
-  modelName: "Qwen3.5-27B",
-  weightRepo: "local:27B",
-  model: { ...DEFAULT_27B, layerTypes: defaultLayerTypes(64, 4) },
-  train: defaultTrain(DEFAULT_27B),
+  seriesId: INITIAL_ENTRY.seriesId,
+  modelName: INITIAL_ENTRY.modelId,
+  modelLabel: INITIAL_ENTRY.label,
+  loadedModelId: INITIAL_ENTRY.modelId,
+  weightRepo: INITIAL_ENTRY.repo,
+  model: INITIAL_MODEL,
+  train: defaultTrain(INITIAL_MODEL),
+  loadState: "ready",
+  customConfig: null,
 };
 
 function $(id) { return document.getElementById(id); }
@@ -442,8 +460,14 @@ function pct(part, tot) {
   return (part / tot * 100).toFixed(1) + "%";
 }
 
-function parseConfig(cfg) {
+function parseConfig(cfg, metadata) {
   const text = cfg.text_config || cfg.language_config || cfg;
+  if (GlmMemoryModel.isGlmMoeDsaConfig(cfg)) {
+    return GlmMemoryModel.parseConfig(cfg, metadata);
+  }
+  if (String(text.model_type || "").startsWith("glm")) {
+    throw new Error("暂不支持该 GLM 架构：" + (text.model_type || "unknown"));
+  }
   const vis = cfg.vision_config || {};
   const nQ = pick(text, ["num_attention_heads"], 0);
   const H = pick(text, ["hidden_size"], 0);
@@ -483,6 +507,47 @@ function parseConfig(cfg) {
 }
 
 function countParams(model) {
+  if (model && model.family === "glm") {
+    const summary = GlmMemoryModel.summarizeComponents(model);
+    const H = model.hidden, E = model.experts, I = model.moeI;
+    const gateUp = E * H * 2 * I;
+    const down = E * I * H;
+    const router = E * H;
+    const shared = 3 * H * model.shareI;
+    const denseMlp = 3 * H * model.denseI;
+    const qA = H * model.qLoraRank;
+    const qANorm = model.qLoraRank;
+    const qB = model.qLoraRank * model.nQ * (model.qkNopeHeadDim + model.qkRopeHeadDim);
+    const kvA = H * (model.kvLoraRank + model.qkRopeHeadDim);
+    const kvANorm = model.kvLoraRank;
+    const kvB = model.kvLoraRank * model.nQ * (model.qkNopeHeadDim + model.vHeadDim);
+    const mlaO = model.nQ * model.vHeadDim * H;
+    const mlaPer = qA + qANorm + qB + kvA + kvANorm + kvB + mlaO;
+    const indexerPer = model.qLoraRank * model.indexNHeads * model.indexHeadDim
+      + H * model.indexHeadDim + H * model.indexNHeads + 2 * model.indexHeadDim;
+    const sparseMlp = gateUp + down + router + shared + E;
+    const mtpN = (model.mtp || 0) * (mlaPer + indexerPer + sparseMlp + 2 * H + 2 * H * H + 3 * H);
+    return {
+      ...summary,
+      nDense: summary.N - summary.nExpert,
+      nFull: model.layers + (model.mtp || 0), nGdn: 0, vit: 0, textN: summary.N,
+      embed: summary.embed, lm: summary.lm, finalNorm: summary.finalNorm,
+      gateUp, down, router, shared, sharedGate: 0, denseMlp,
+      moeOther: router + shared + E,
+      mlpPer: sparseMlp,
+      mlpLayersN: summary.denseMlpN + summary.expertN + summary.routerN + summary.sharedN + summary.normN,
+      fullQ: qA + qB, fullK: kvA + kvB, fullV: 0, fullO: mlaO,
+      fullQkNorm: qANorm + kvANorm, fullAttn: mlaPer,
+      gdn: 0, attn: summary.mlaN + summary.indexerN,
+      mtpN,
+      vitPatch: 0, vitBlock: 0, vitMerger: 0, vitDepth: 0,
+      V: model.vocab, H, L: model.layers, E, I, shareI: model.shareI,
+      denseI: model.denseI, dk: 0, dv: 0,
+      nQ: model.nQ, nKV: model.nKV, headDim: 0, attnGate: false,
+      tie: !!model.tie, topk: model.topk,
+      mlaPer, indexerPer, sparseMlp,
+    };
+  }
   const V = model.vocab, H = model.hidden, L = model.layers, E = model.experts, I = model.moeI;
   const embed = V * H;
   const lm = model.tie ? 0 : V * H;
@@ -576,18 +641,44 @@ function compute(model, train) {
   checkDiv("EP", EP);
   checkDiv("ETP", ETP);
   const splitOk = posOk(TP) && posOk(PP) && posOk(EP) && posOk(ETP);
-  const nRankDense = splitOk ? p.nDense / (TP * PP) : null;
-  const nRankExp = splitOk ? p.nExpert / (EP * ETP * PP) : null;
-  const perRank = sumNum(nRankDense, nRankExp);
   const bw = train.bw || 2;
-  const Wd = isNum(nRankDense) ? nRankDense * bw / GIB : null;
-  const We = isNum(nRankExp) ? nRankExp * bw / GIB : null;
-  const W = sumNum(Wd, We);
-  const G = W;
-  const Gd = Wd;
-  const Ge = We;
-  const adam = isNum(perRank) ? perRank * 12 / GIB : null;
-  const AdamGpu = train.adamOff ? 0 : adam;
+  let nRankDense, nRankExp, perRank, Wd, We, W, G, Gd, Ge, adam, AdamGpu;
+  let nRankTpShard = null, nRankReplicated = null;
+  let rankTrainable = null, rankBuffer = null, rankMuon = null, rankAdamw = null;
+  if (p.isGlm && splitOk) {
+    const stat = GlmMemoryModel.aggregateStatic(model, {
+      ...train, TP, PP, EP, ETP, optimizerOffload: !!train.adamOff,
+    }, p.components);
+    nRankTpShard = stat.nRankTpShard;
+    nRankReplicated = stat.nRankReplicated;
+    nRankDense = stat.nRankTpShard + stat.nRankReplicated;
+    nRankExp = stat.nRankExpert;
+    perRank = stat.perRank;
+    rankTrainable = stat.rankTrainable;
+    rankBuffer = stat.rankBuffer;
+    rankMuon = stat.rankMuon;
+    rankAdamw = stat.rankAdamw;
+    W = stat.W;
+    G = stat.G;
+    Wd = null;
+    We = null;
+    Gd = null;
+    Ge = null;
+    adam = stat.optimizer;
+    AdamGpu = stat.optimizer;
+  } else {
+    nRankDense = splitOk ? p.nDense / (TP * PP) : null;
+    nRankExp = splitOk ? p.nExpert / (EP * ETP * PP) : null;
+    perRank = sumNum(nRankDense, nRankExp);
+    Wd = isNum(nRankDense) ? nRankDense * bw / GIB : null;
+    We = isNum(nRankExp) ? nRankExp * bw / GIB : null;
+    W = sumNum(Wd, We);
+    G = W;
+    Gd = Wd;
+    Ge = We;
+    adam = isNum(perRank) ? perRank * 12 / GIB : null;
+    AdamGpu = train.adamOff ? 0 : adam;
+  }
   const staticWG = sumNum(W, G);
   const staticFull = sumNum(staticWG, AdamGpu);
 
@@ -603,7 +694,11 @@ function compute(model, train) {
   const T = tOk ? mbs * seq : null;
   const V = p.V, H = p.H, L = p.L;
   const Vloc = posOk(TP) ? V / TP : null;
-  const vocabWs = (isNum(T) && isNum(Vloc)) ? 2 * T * Vloc * 4 / GIB : null;
+  const ceChunks = train.ceChunks == null ? 1 : train.ceChunks;
+  if (!posOk(ceChunks)) warns.push("CE 分块数必须大于 0");
+  const vocabWs = (isNum(T) && isNum(Vloc) && posOk(ceChunks)) ? 2 * T * Vloc * 4 / ceChunks / GIB : null;
+  const dsaIndices = p.isGlm && isNum(T) ? T * model.indexTopk * 4 / GIB : 0;
+  const routerLogits = p.isGlm && model.routerFp32 && isNum(T) ? T * model.experts * 4 / GIB : 0;
   const entropyClone = train.entropy
     ? (isNum(T) && isNum(Vloc) ? T * Vloc * bw / GIB : null)
     : 0;
@@ -611,16 +706,32 @@ function compute(model, train) {
   const actExtra = train.recompute
     ? 0
     : ((isNum(T) && H > 0 && L > 0) ? L * T * H * 2 / GIB : null);
-  const ws = sumNum(vocabWs, entropyClone, actExtra);
+  const outputWs = sumNum(vocabWs, entropyClone);
+  const attentionWs = isNum(dsaIndices) && isNum(routerLogits) ? Math.max(dsaIndices, routerLogits) : null;
+  const dynG = p.isGlm
+    ? (isNum(outputWs) && isNum(attentionWs) ? Math.max(outputWs, attentionWs) : null)
+    : outputWs;
+  const ws = sumNum(dynG, actExtra);
   const peak = sumNum(staticFull, ws);
-  const dynG = sumNum(vocabWs, entropyClone);
   const actG = actExtra;
   const nKV = model.nKV || 0;
-  const tpIllegal = posOk(TP) && isNum(nKV) && nKV > 0 && TP > nKV;
-  const peakOk = recOk && !tpIllegal;
-  if (tpIllegal) warns.push("TP=" + TP + " > n_kv_heads=" + nKV);
+  const tpLimit = p.isGlm ? model.nQ : nKV;
+  const tpIllegal = posOk(TP) && isNum(tpLimit) && tpLimit > 0 && (TP > tpLimit || tpLimit % TP !== 0);
+  const epIllegal = p.isGlm && posOk(EP) && model.experts % EP !== 0;
+  const peakOk = recOk && !tpIllegal && !epIllegal && PP === 1 && !p.isGlm;
+  if (tpIllegal) warns.push("TP=" + TP + " 必须整除 attention heads=" + tpLimit);
+  if (epIllegal) warns.push("EP=" + EP + " 必须整除 experts=" + model.experts);
   else if (!train.recompute) warns.push("已关 recompute：高峰另加约 L×T×H×2");
-  if (isNum(PP) && PP > 1) warns.push("PP>1：静态按 PP 均分；词表按最后 stage 整份加上（中间 stage 没有词表项）");
+  if (isNum(PP) && PP > 1) warns.push("PP>1：当前显示按 stage 均摊的下界，尚未建模最重 stage");
+  if (p.isGlm && model.checkpointPrecision === "FP8 mixed") {
+    warns.push("所选 checkpoint 为 FP8 混合精度；训练权重/梯度仍按 BF16 口径");
+  }
+  if (p.isGlm && train.optimizer === "muon" && !train.adamOff) {
+    warns.push("Muon 状态按 fp32 momentum 4 B/二维参数估算，需按实际训练实现校准");
+  }
+  if (p.isGlm) {
+    warns.push("GLM 整卡峰值尚无真实训练 profile；DSA/路由只计单张量工作集下界");
+  }
 
   const nComm = 1
     + (posOk(TP) && TP > 1 ? 1 : 0)
@@ -638,9 +749,11 @@ function compute(model, train) {
 
   return {
     ...p, TP, PP, EP, ETP, seq, T, Vloc, perRank, nRankDense, nRankExp,
-    nKV, tpIllegal, peakOk, recOk,
+    nRankTpShard, nRankReplicated,
+    rankTrainable, rankBuffer, rankMuon, rankAdamw,
+    nKV, tpIllegal, epIllegal, peakOk, recOk,
     W, G, Wd, We, Gd, Ge, adam, AdamGpu, staticWG, staticFull,
-    vocabWs, entropyClone, actExtra, dynG, actG, ws, peak, warns, bw,
+    vocabWs, dsaIndices, routerLogits, outputWs, attentionWs, entropyClone, actExtra, dynG, actG, ws, peak, warns, bw, ceChunks,
     mbs, prompt, resp,
     hcclG, nComm, hcclMB, fragG, ptaG, osG, runtimeG, deviceG,
   };
@@ -657,6 +770,8 @@ function readForm() {
   t.mbs = readNum("ovMbs");
   t.prompt = readNum("ovPrompt");
   t.resp = readNum("ovResp");
+  t.ceChunks = readNum("ovCeChunks");
+  t.optimizer = $("ovOptimizer").value;
   t.adamOff = $("ovAdamOff").checked;
   t.recompute = $("ovRecompute").checked;
   t.entropy = $("ovEntropy").checked;
@@ -670,6 +785,7 @@ function readForm() {
 
 function syncSplitUi() {
   const moe = isMoeModel(S.model);
+  const glm = S.model && S.model.family === "glm";
   const ep = $("epField");
   const etp = $("etpField");
   if (ep) {
@@ -686,10 +802,22 @@ function syncSplitUi() {
     writeNum("ovEP", 1);
     writeNum("ovETP", 1);
   }
+  $("ovMtp").disabled = glm;
+  $("ovMtp").title = glm ? "GLM checkpoint 的 MTP 参数层数是结构真值，不允许在场景参数中覆盖" : "";
+  $("ovLayers").disabled = !glm;
+  $("ovLayers").title = glm
+    ? "覆盖 decoder 层数：dense/indexer 分布按官方规则重新推导，结果不再与 checkpoint 对账"
+    : "仅 GLM MoE-DSA 支持层数覆盖";
+  $("ovOptimizer").disabled = !glm;
+  if (!glm) {
+    S.train.optimizer = "adamw";
+    $("ovOptimizer").value = "adamw";
+  }
 }
 
 function writeForm() {
   const t = S.train;
+  $("ovSeries").value = S.seriesId;
   $("ovModel").value = S.modelName;
   writeNum("ovTP", t.TP);
   writeNum("ovPP", t.PP);
@@ -700,7 +828,10 @@ function writeForm() {
   writeNum("ovMbs", t.mbs);
   writeNum("ovPrompt", t.prompt);
   writeNum("ovResp", t.resp);
+  writeNum("ovCeChunks", t.ceChunks == null ? 1 : t.ceChunks);
   writeNum("ovMtp", S.model.mtp);
+  writeNum("ovLayers", S.model && S.model.family === "glm" ? S.model.layers : null);
+  $("ovOptimizer").value = t.optimizer || "adamw";
   $("ovAdamOff").checked = !!t.adamOff;
   $("ovRecompute").checked = !!t.recompute;
   $("ovEntropy").checked = !!t.entropy;
@@ -722,15 +853,21 @@ function partsOf(r) {
 }
 
 function render() {
+  if (S.loadState !== "ready" || S.loadedModelId !== S.modelName) {
+    clearResult();
+    return;
+  }
   syncSplitUi();
   const r = compute(S.model, S.train);
   const parts = partsOf(r);
   const tot = r.deviceG;
   const hbm = S.train.hbm;
 
-  if (r.tpIllegal) {
+  if (r.tpIllegal || r.epIllegal) {
     $("vTotal").innerHTML = "非法";
-    $("vTotalSub").textContent = "TP=" + r.TP + " > n_kv_heads=" + r.nKV;
+    $("vTotalSub").textContent = r.tpIllegal
+      ? "TP 必须整除 attention heads"
+      : "EP 必须整除 experts";
   } else {
     $("vTotal").innerHTML = isNum(tot) ? fmtG(tot) + "<span>GiB</span>" : "null";
     $("vTotalSub").textContent = !isNum(tot)
@@ -740,9 +877,9 @@ function render() {
         : "npu-smi Used 口径 · 高峰仅下界");
   }
   if (!isNum(hbm)) $("vRemain").textContent = "单卡容量为空，余量无法计算";
-  else if (!isNum(tot) || r.tpIllegal) $("vRemain").textContent = "预估为 null，余量无法计算";
+  else if (!isNum(tot) || r.tpIllegal || r.epIllegal) $("vRemain").textContent = "预估为 null，余量无法计算";
   else $("vRemain").textContent = "相对单卡 " + hbm + " GiB · 余量 " + fmtG(hbm - tot) + " GiB";
-  $("hbmBar").innerHTML = !r.tpIllegal && isNum(tot) && tot > 0
+  $("hbmBar").innerHTML = !r.tpIllegal && !r.epIllegal && isNum(tot) && tot > 0
     ? parts.map((p) => `<i style="width:${Math.max(0, (isNum(p.g) ? p.g : 0) / tot * 100)}%;background:${p.color}"></i>`).join("")
     : "";
 
@@ -754,7 +891,17 @@ function render() {
   const chips = [
     `<span class="chip ${isMoe ? "warn" : "ok"}">${isMoe ? "MOE" : "DENSE"}</span>`,
   ];
-  if ((S.model.vitDepth || 0) > 0 || /[-_]?VL[-_]?/i.test(S.modelName)) {
+  if (r.isGlm) {
+    chips.push(`<span class="chip">GLM</span>`);
+    chips.push(`<span class="chip">MLA + DSA</span>`);
+    chips.push(`<span class="chip">${S.model.checkpointPrecision} checkpoint</span>`);
+    if (S.model.checkpointTruthBytes == null) {
+      chips.push(`<span class="chip warn">合成配置 · 无 checkpoint 真值</span>`);
+    }
+    if (S.model.mtp > 0) chips.push(`<span class="chip">MTP × ${S.model.mtp}</span>`);
+  }
+  const selectedEntry = catalogModel(S.modelName);
+  if ((S.model.vitDepth || 0) > 0 || (selectedEntry && selectedEntry.capabilities.vision)) {
     chips.push(`<span class="chip">VL</span>`);
   }
   if (!isMoe) {
@@ -772,18 +919,26 @@ function render() {
 
   const wEq = !isNum(r.W)
     ? `N_rank × 2 = ${r.perRank == null ? "null" : fmtN(r.perRank)} × 2 = null`
-    : `N_rank × 2 = ${fmtN(r.perRank)} × 2 / 1024³ = ${fmtG(r.W)} GiB`;
+    : (r.isGlm
+      ? `N_trainable × 2 + N_buffer × 4 = ${fmtG(r.W)} GiB`
+      : `N_rank × 2 = ${fmtN(r.perRank)} × 2 / 1024³ = ${fmtG(r.W)} GiB`);
   const gEq = !isNum(r.G)
     ? `N_rank × 2 = null`
-    : `N_rank × 2 = ${fmtN(r.perRank)} × 2 / 1024³ = ${fmtG(r.G)} GiB`;
+    : (r.isGlm
+      ? `N_trainable × 2 = ${fmtN(r.rankTrainable)} × 2 / 1024³ = ${fmtG(r.G)} GiB`
+      : `N_rank × 2 = ${fmtN(r.perRank)} × 2 / 1024³ = ${fmtG(r.G)} GiB`);
   const oEq = S.train.adamOff
-    ? `Adam 在 CPU = 0 GiB`
+    ? `优化器状态在 CPU = 0 GiB`
     : (!isNum(r.AdamGpu)
-      ? `N_rank × 12 = null`
-      : `N_rank × 12 = ${fmtN(r.perRank)} × 12 / 1024³ = ${fmtG(r.AdamGpu)} GiB`);
+      ? `优化器状态 = null`
+      : (r.isGlm && S.train.optimizer === "muon"
+        ? `N_muon × 4 + N_adamw × 12 = ${fmtG(r.AdamGpu)} GiB`
+        : `N_trainable × 12 / 1024³ = ${fmtG(r.AdamGpu)} GiB`));
   const dynEq = !isNum(r.vocabWs)
-    ? `2 × T × (V/TP) × 4 = 2 × ${r.T == null ? "null" : fmtN(r.T)} × ${r.Vloc == null ? "null" : fmtN(r.Vloc)} × 4 = null`
-    : `2 × T × (V/TP) × 4 = 2 × ${fmtN(r.T)} × ${fmtN(r.Vloc)} × 4 / 1024³ = ${fmtG(r.vocabWs)} GiB`;
+    ? `2 × T × (V/TP) × 4 / chunks = null`
+    : (r.isGlm
+      ? `max(CE/输出阶段 ${fmtG(r.outputWs)}, DSA/路由阶段 ${fmtG(r.attentionWs)}) = ${fmtG(r.dynG)} GiB`
+      : `2 × T × (V/TP) × 4 / ${r.ceChunks} = ${fmtG(r.vocabWs)} GiB`);
   const actEq = S.train.recompute
     ? `full recompute = 0 GiB`
     : (!isNum(r.actG)
@@ -795,8 +950,18 @@ function render() {
 
   const vocabN = r.embed + r.lm + r.finalNorm;
   const mlpNormN = r.L * 2 * r.H;
+  const componentN = (key) => {
+    const item = (r.components || []).find((x) => x.key === key);
+    return item ? item.numel : 0;
+  };
   let mlpKids;
-  if (r.E > 0) {
+  if (r.isGlm) {
+    mlpKids =
+      leaf(`${r.denseRegular} 层 dense MLP`, `${r.denseRegular} × 3H×I_dense`, fmtN(r.denseMlpN)) +
+      leaf(`${r.sparseTotal} 层 routed experts`, `${r.sparseTotal} × E×3H×I_moe`, fmtN(r.expertN)) +
+      leaf(`${r.sparseTotal} 层 router`, `${r.sparseTotal} × E×H`, fmtN(r.routerN)) +
+      leaf(`${r.sparseTotal} 层 shared experts`, `${r.sparseTotal} × 3H×I_shared`, fmtN(r.sharedN));
+  } else if (r.E > 0) {
     mlpKids =
       branch("一层 MLP", "gate_up + down + router + shared", fmtN(r.mlpPer),
         leaf("gate_up", `E × H × 2I`, fmtN(r.gateUp)) +
@@ -810,14 +975,30 @@ function render() {
       leaf("一层 dense MLP", `3 × H × I`, fmtN(r.denseMlp)) +
       leaf("L 层 RMSNorm", `L × 2H`, fmtN(mlpNormN));
   }
-  let attnKids =
-    branch("一层 full", "q + k + v + o + q/k_norm", fmtN(r.fullAttn),
-      leaf("q", `H × n_q × d${r.attnGate ? " × 2" : ""}`, fmtN(r.fullQ)) +
-      leaf("k / v", `H × n_kv × d × 2`, fmtN(r.fullK + r.fullV)) +
-      leaf("o", `(n_q × d) × H`, fmtN(r.fullO)) +
-      leaf("q/k_norm", `2d`, fmtN(r.fullQkNorm))) +
-    leaf(`${r.nFull} 层 full`, `${r.nFull} × ${fmtN(r.fullAttn)}`, fmtN(r.nFull * r.fullAttn));
-  if (r.nGdn > 0) {
+  let attnKids;
+  if (r.isGlm) {
+    attnKids =
+      branch("MLA", `${r.L + r.mtp} 个完整 decoder 层`, fmtN(r.mlaN),
+        leaf("q_a_proj", `H × q_lora`, fmtN(componentN("mla_q_a"))) +
+        leaf("q_b_proj", `q_lora × n_q × (d_nope+d_rope)`, fmtN(componentN("mla_q_b"))) +
+        leaf("kv_a_proj", `H × (kv_lora+d_rope)`, fmtN(componentN("mla_kv_a"))) +
+        leaf("kv_b_proj", `kv_lora × n_q × (d_nope+d_v)`, fmtN(componentN("mla_kv_b"))) +
+        leaf("o_proj", `n_q × d_v × H`, fmtN(componentN("mla_o")))) +
+      branch("DSA indexer", `${r.fullIndexerTotal} full，${r.L - r.fullIndexerRegular} shared`, fmtN(r.indexerN),
+        leaf("wq_b", `q_lora × n_index_heads × d_index`, fmtN(componentN("indexer_wq_b"))) +
+        leaf("wk", `H × d_index`, fmtN(componentN("indexer_wk"))) +
+        leaf("weights_proj", `H × n_index_heads`, fmtN(componentN("indexer_weights"))) +
+        leaf("k_norm", `weight + bias`, fmtN(componentN("indexer_norm"))));
+  } else {
+    attnKids =
+      branch("一层 full", "q + k + v + o + q/k_norm", fmtN(r.fullAttn),
+        leaf("q", `H × n_q × d${r.attnGate ? " × 2" : ""}`, fmtN(r.fullQ)) +
+        leaf("k / v", `H × n_kv × d × 2`, fmtN(r.fullK + r.fullV)) +
+        leaf("o", `(n_q × d) × H`, fmtN(r.fullO)) +
+        leaf("q/k_norm", `2d`, fmtN(r.fullQkNorm))) +
+      leaf(`${r.nFull} 层 full`, `${r.nFull} × ${fmtN(r.fullAttn)}`, fmtN(r.nFull * r.fullAttn));
+  }
+  if (!r.isGlm && r.nGdn > 0) {
     attnKids +=
       leaf("一层 GDN", `d_k=${r.dk}，d_v=${r.dv}`, fmtN(r.gdn)) +
       leaf(`${r.nGdn} 层 GDN`, `${r.nGdn} × ${fmtN(r.gdn)}`, fmtN(r.nGdn * r.gdn));
@@ -827,9 +1008,20 @@ function render() {
       leaf("embed", `V × H`, fmtN(r.embed)) +
       leaf("lm_head", r.tie ? "tie" : `V × H`, fmtN(r.lm)) +
       leaf("最终 RMSNorm", `H`, fmtN(r.finalNorm)));
-  if (mlpKids) textKids += branch("L 层 MLP + RMSNorm", `L × (MLP + 2H)`, fmtN(r.mlpLayersN), mlpKids);
-  textKids += branch("注意力", `${r.nFull} full + ${r.nGdn} GDN`, fmtN(r.attn), attnKids);
-  if (r.mtp > 0) textKids += leaf("MTP", `${r.mtp} 层`, fmtN(r.mtpN));
+  if (r.isGlm) {
+    textKids += branch("混合 MLP", `${r.denseRegular} dense + ${r.sparseRegular} sparse + ${r.mtp} MTP sparse`,
+      fmtN(r.denseMlpN + r.expertN + r.routerN + r.sharedN), mlpKids);
+    textKids += branch("MLA + DSA", "共享层不创建 indexer 参数", fmtN(r.mlaN + r.indexerN), attnKids);
+    textKids += branch("Norm / MTP / buffer", "其余 norm + eh_proj + fp32 router buffer",
+      fmtN(r.normN - r.finalNorm + r.mtpExtraN + r.bufferN),
+      leaf("其余 norm", "AdamW 小参数", fmtN(r.normN - r.finalNorm)) +
+      leaf("MTP eh_proj", `mtp × 2H²`, fmtN(r.mtpExtraN)) +
+      leaf("router correction", "fp32 buffer，无梯度/优化器状态", fmtN(r.bufferN)));
+  } else {
+    if (mlpKids) textKids += branch("L 层 MLP + RMSNorm", `L × (MLP + 2H)`, fmtN(r.mlpLayersN), mlpKids);
+    textKids += branch("注意力", `${r.nFull} full + ${r.nGdn} GDN`, fmtN(r.attn), attnKids);
+    if (r.mtp > 0) textKids += leaf("MTP", `${r.mtp} 层`, fmtN(r.mtpN));
+  }
   let vitKids;
   if (r.vitDepth > 0) {
     vitKids =
@@ -842,50 +1034,73 @@ function render() {
   const ppLab = r.PP == null ? "空" : r.PP;
   const epLab = r.EP == null ? "空" : r.EP;
   const etpLab = r.ETP == null ? "空" : r.ETP;
-  const rankTitle = r.E > 0
-    ? "N_rank = N_dense/(TP×PP) + N_expert/(EP×ETP×PP)"
-    : "N_rank = N/(TP×PP)";
-  const rankFml = r.E > 0
-    ? `${fmtN(r.nRankDense)} + ${fmtN(r.nRankExp)}`
-    : `${fmtN(r.N)} / (${tpLab}×${ppLab})`;
-  const nTree =
-    `<div class="tree">` +
-    branch(rankTitle, rankFml, fmtN(r.perRank),
-      branch("N_dense = N − N_expert", `${fmtN(r.N)} − ${fmtN(r.nExpert)}`, fmtN(r.nDense),
-        branch("N = Text + ViT", `${fmtN(r.textN)} + ${fmtN(r.vit)}`, fmtN(r.N),
-          branch("Text", r.mtp > 0 ? "词表 + MLP + 注意力 + MTP" : "词表 + MLP + 注意力", fmtN(r.textN), textKids) +
-          (vitKids
-            ? branch("ViT", "patch + blocks + merger", fmtN(r.vit), vitKids)
-            : leaf("ViT", "无视觉塔", "0")))) +
-      (r.E > 0
-        ? branch("N_expert = L × (gate_up + down)", `${r.L} × ${fmtN(nExpLayer)}`, fmtN(r.nExpert),
-            leaf("gate_up", `E × H × 2I`, fmtN(r.gateUp)) +
-            leaf("down", `E × I × H`, fmtN(r.down)) +
-            leaf("一层路由专家", `gate_up + down`, fmtN(nExpLayer)) +
-            leaf("L 层", `${r.L} × (gate_up + down)`, fmtN(r.nExpert)))
-        : leaf("N_expert", "无路由专家，EP=1", "0")) +
-      leaf("N_dense / (TP×PP)", `TP=${tpLab}　PP=${ppLab}`, fmtN(r.nRankDense)) +
-      (r.E > 0
-        ? leaf("N_expert / (EP×ETP×PP)", `EP=${epLab}　ETP=${etpLab}　PP=${ppLab}`, fmtN(r.nRankExp))
-        : "")) +
-    `</div>`;
+  let nTree;
+  if (r.isGlm) {
+    const checkpointGiB = r.checkpointTruthBytes == null ? null : r.checkpointTruthBytes / GIB;
+    nTree =
+      `<div class="tree">` +
+      branch("N_rank = N_tp/(TP×PP) + N_copy/PP + N_expert/(EP×ETP×PP)",
+        `${fmtN(r.nRankTpShard)} + ${fmtN(r.nRankReplicated)} + ${fmtN(r.nRankExp)}`,
+        fmtN(r.perRank),
+        branch("N = 组件账本", "每个张量记录 dtype / TP / EP / optimizer", fmtN(r.N), textKids) +
+        leaf("TP 可切", `TP=${tpLab}　PP=${ppLab}`, fmtN(r.nRankTpShard)) +
+        leaf("TP 复制", `仅按 PP=${ppLab} 分 stage`, fmtN(r.nRankReplicated)) +
+        leaf("路由专家", `EP=${epLab}　ETP=${etpLab}　PP=${ppLab}`, fmtN(r.nRankExp)) +
+         leaf("checkpoint 真值", S.model.checkpointPrecision, checkpointGiB == null ? "无（合成配置）" : mem(checkpointGiB))) +
+      `</div>`;
+  } else {
+    const rankTitle = r.E > 0
+      ? "N_rank = N_dense/(TP×PP) + N_expert/(EP×ETP×PP)"
+      : "N_rank = N/(TP×PP)";
+    const rankFml = r.E > 0
+      ? `${fmtN(r.nRankDense)} + ${fmtN(r.nRankExp)}`
+      : `${fmtN(r.N)} / (${tpLab}×${ppLab})`;
+    nTree =
+      `<div class="tree">` +
+      branch(rankTitle, rankFml, fmtN(r.perRank),
+        branch("N_dense = N − N_expert", `${fmtN(r.N)} − ${fmtN(r.nExpert)}`, fmtN(r.nDense),
+          branch("N = Text + ViT", `${fmtN(r.textN)} + ${fmtN(r.vit)}`, fmtN(r.N),
+            branch("Text", r.mtp > 0 ? "词表 + MLP + 注意力 + MTP" : "词表 + MLP + 注意力", fmtN(r.textN), textKids) +
+            (vitKids
+              ? branch("ViT", "patch + blocks + merger", fmtN(r.vit), vitKids)
+              : leaf("ViT", "无视觉塔", "0")))) +
+        (r.E > 0
+          ? branch("N_expert = L × (gate_up + down)", `${r.L} × ${fmtN(nExpLayer)}`, fmtN(r.nExpert),
+              leaf("gate_up", `E × H × 2I`, fmtN(r.gateUp)) +
+              leaf("down", `E × I × H`, fmtN(r.down)) +
+              leaf("一层路由专家", `gate_up + down`, fmtN(nExpLayer)) +
+              leaf("L 层", `${r.L} × (gate_up + down)`, fmtN(r.nExpert)))
+          : leaf("N_expert", "无路由专家，EP=1", "0")) +
+        leaf("N_dense / (TP×PP)", `TP=${tpLab}　PP=${ppLab}`, fmtN(r.nRankDense)) +
+        (r.E > 0
+          ? leaf("N_expert / (EP×ETP×PP)", `EP=${epLab}　ETP=${etpLab}　PP=${ppLab}`, fmtN(r.nRankExp))
+          : "")) +
+      `</div>`;
+  }
 
   const dynLis =
     li("T", `mbs × (prompt + response) = ${r.mbs == null ? "空" : r.mbs} × (${r.prompt == null ? "空" : r.prompt} + ${r.resp == null ? "空" : r.resp})`, r.T == null ? "null" : fmtN(r.T)) +
     li("V/TP", `${fmtN(r.V)} / ${r.TP == null ? "空" : r.TP}`, r.Vloc == null ? "null" : fmtN(r.Vloc)) +
+    li("CE chunks", "sequence-chunked output projection + CE", r.ceChunks == null ? "null" : fmtN(r.ceChunks)) +
     li("两份 fp32", `峰值同时活着的两块 [T, V/TP]`, "2 × 4 byte") +
     (S.train.entropy ? li("entropy", `T × (V/TP) × 2`, mem(r.entropyClone)) : "");
   const dynKids =
     `<div class="tree">` +
-    branch("CE峰值", "两份 [T, V/TP] fp32", mem(r.vocabWs), `<ul class="sub">` + dynLis + `</ul>`) +
+    branch("CE峰值", `两份 [T, V/TP] fp32 ÷ ${r.ceChunks}`, mem(r.vocabWs), `<ul class="sub">` + dynLis + `</ul>`) +
+    (r.isGlm
+      ? leaf("DSA top-k indices", `T × index_topk × int32`, mem(r.dsaIndices)) +
+        leaf("router logits", `T × E × fp32`, mem(r.routerLogits))
+      : "") +
     `</div>`;
+
+  const optimizerName = r.isGlm && S.train.optimizer === "muon" ? "Muon + AdamW" : "AdamW";
 
   $("mapBody").innerHTML = [
     partBlock("权重", COLORS.weight, r.W, wEq, nTree),
     partBlock("优化器", COLORS.adam, r.AdamGpu, oEq,
-      `<ul class="sub">${li("Adam", S.train.adamOff ? "在 CPU，不计入 allocated" : "12 byte/参数", mem(r.AdamGpu))}</ul>`),
+      `<ul class="sub">${li(optimizerName, S.train.adamOff ? "在 CPU，不计入 allocated" : (optimizerName === "Muon + AdamW" ? "2D ×4；embed/bias/norm ×12" : "12 byte/参数"), mem(r.AdamGpu))}</ul>`),
     partBlock("梯度", COLORS.grad, r.G, gEq,
-      `<p class="note">与权重同体积。</p>`),
+      `<p class="note">${r.isGlm ? "仅可训练参数计梯度；fp32 router buffer 无梯度。" : "与权重同体积。"}</p>`),
     partBlock("动态内存", COLORS.dyn, r.dynG, dynEq, dynKids),
     partBlock("激活值", COLORS.act, r.actG, actEq,
       `<ul class="sub">` +
@@ -908,13 +1123,23 @@ function partBlock(name, color, g, eq, inner) {
 
 function setErr(msg) { $("err").textContent = msg || ""; }
 
+function fillSeriesSelect() {
+  $("ovSeries").innerHTML = MemoryModelCatalog.listSeries()
+    .map((series) => `<option value="${series.seriesId}">${series.seriesLabel}</option>`)
+    .join("");
+  $("ovSeries").value = S.seriesId;
+}
+
 function fillModelSelect() {
-  $("ovModel").innerHTML = QWEN_GROUPS.map((g) =>
-    `<optgroup label="${g.label}">` +
-    g.models.map((name) => `<option value="${name}">${name}</option>`).join("") +
-    `</optgroup>`
-  ).join("");
-  if (!allQwenModels().includes(S.modelName)) S.modelName = "Qwen3.5-27B";
+  const models = MemoryModelCatalog.listModels(S.seriesId);
+  $("ovModel").innerHTML = models.map((entry) => {
+    const suffix = entry.supported ? "" : "（待专项建模）";
+    return `<option value="${entry.modelId}" ${entry.supported ? "" : "disabled"}>${entry.label}${suffix}</option>`;
+  }).join("");
+  if (!models.some((entry) => entry.modelId === S.modelName && entry.supported)) {
+    const series = MemoryModelCatalog.listSeries().find((item) => item.seriesId === S.seriesId);
+    S.modelName = series ? series.defaultModelId : models.find((entry) => entry.supported)?.modelId;
+  }
   $("ovModel").value = S.modelName;
 }
 
@@ -940,60 +1165,181 @@ async function fetchRemoteConfig(repo) {
   throw lastErr || new Error("拉取失败");
 }
 
-function applyParsedModel(m, resetTrain) {
-  if (!m.layerTypes || !m.layerTypes.length) {
+function applyParsedModel(m, resetTrain, entry) {
+  if (m.family !== "glm" && (!m.layerTypes || !m.layerTypes.length)) {
     m.layerTypes = defaultLayerTypes(m.layers, m.fullInterval || 4);
   }
   S.model = m;
+  S.loadedModelId = entry.modelId;
+  S.modelLabel = entry.label;
+  S.loadState = "ready";
   if (resetTrain) S.train = defaultTrain(m);
-  S.model.mtp = isNum(S.train.mtp) ? Math.max(S.train.mtp, 0) : 0;
+  else if (isNum(S.train.mtp)) S.model.mtp = Math.max(S.train.mtp, 0);
   writeForm();
   render();
 }
 
 let fetchGen = 0;
-async function loadWeight(repo, resetTrain) {
+function clearResult() {
+  $("vTotal").innerHTML = "—<span>GiB</span>";
+  $("vTotalSub").textContent = "模型配置尚未加载完成";
+  $("vRemain").textContent = "";
+  $("hbmBar").innerHTML = "";
+  $("blocks").innerHTML = "";
+  $("mapBody").innerHTML = "";
+  $("mapFoot").textContent = "";
+  $("chips").innerHTML = "";
+}
+
+async function loadModel(entry, resetTrain) {
   const gen = ++fetchGen;
-  S.weightRepo = repo;
-  if (repo === "local:12L") {
-    setErr("");
-    applyParsedModel({ ...DEFAULT_12L, layerTypes: defaultLayerTypes(12, 4) }, resetTrain);
+  if (!entry || !entry.supported) {
+    setErr(entry ? entry.supportNote : "未知模型");
     return;
   }
-  if (repo === "local:20L") {
-    setErr("");
-    applyParsedModel({ ...DEFAULT_20L, layerTypes: defaultLayerTypes(20, 4) }, resetTrain);
-    return;
-  }
-  if (repo === "local:27B") {
-    setErr("");
-    applyParsedModel({ ...DEFAULT_27B, layerTypes: defaultLayerTypes(64, 4) }, resetTrain);
-    return;
-  }
-  setErr("");
-  try {
-    const cfg = await fetchRemoteConfig(repo);
+  S.weightRepo = entry.repo;
+  S.customConfig = null;
+  removeCustomOption();
+  S.loadedModelId = null;
+  S.loadState = "loading";
+  clearResult();
+  setErr("正在加载 " + entry.label + " 配置…");
+  const local = localModelForEntry(entry);
+  if (local) {
     if (gen !== fetchGen) return;
-    const m = parseConfig(cfg);
+    setErr("");
+    applyParsedModel({ ...EMPTY_MODEL, ...local }, resetTrain, entry);
+    return;
+  }
+  try {
+    const cfg = await fetchRemoteConfig(entry.repo);
+    if (gen !== fetchGen) return;
+    const m = parseConfig(cfg, { modelId: entry.modelId });
     if (!m.hidden || !m.layers) throw new Error("未能读取 hidden_size / num_hidden_layers");
-    applyParsedModel({ ...EMPTY_MODEL, ...m }, resetTrain);
+    setErr("");
+    applyParsedModel({ ...EMPTY_MODEL, ...m }, resetTrain, entry);
   } catch (e) {
     if (gen !== fetchGen) return;
-    setErr("拉取 " + repo + " 的 config.json 失败：" + (e && e.message ? e.message : e));
+    S.loadState = "error";
+    S.loadedModelId = null;
+    clearResult();
+    setErr("拉取 " + entry.repo + " 的 config.json 失败：" + (e && e.message ? e.message : e));
   }
+}
+
+function removeCustomOption() {
+  const sel = $("ovModel");
+  const html = String(sel.innerHTML);
+  if (html.includes('value="custom-config"')) {
+    sel.innerHTML = html.replace(/<option value="custom-config">[^<]*<\/option>/, "");
+  }
+}
+
+function ensureCustomOption() {
+  const sel = $("ovModel");
+  const html = String(sel.innerHTML);
+  if (!html.includes('value="custom-config"')) {
+    sel.innerHTML = html + '<option value="custom-config">自定义 config</option>';
+  }
+  sel.value = "custom-config";
+}
+
+function onLayersInput() {
+  if (!S.model || S.model.family !== "glm") return;
+  const n = readNum("ovLayers");
+  if (!isNum(n) || n < 1 || Math.floor(n) !== n) {
+    setErr("层数覆盖需要正整数");
+    return;
+  }
+  const layers = Math.floor(n);
+  try {
+    let m;
+    if (S.customConfig) {
+      m = parseConfig(GlmMemoryModel.withLayerOverride(S.customConfig, layers), {
+        modelId: "custom-config",
+        layerOverride: layers,
+      });
+    } else {
+      const cfg = GlmMemoryModel.makePresetConfig(S.modelName, layers);
+      if (!cfg) {
+        setErr("当前模型不支持层数覆盖");
+        return;
+      }
+      m = parseConfig(cfg, { modelId: S.modelName, layerOverride: layers });
+    }
+    applyParsedModel({ ...EMPTY_MODEL, ...m }, false, { modelId: S.modelName, label: S.modelLabel });
+  } catch (e) {
+    setErr("层数覆盖失败：" + (e && e.message ? e.message : e));
+  }
+}
+
+function onCustomConfigLoad() {
+  const raw = String($("customCfg").value ?? "").trim();
+  if (!raw) {
+    setErr("请先粘贴 config.json 再加载");
+    return;
+  }
+  let cfg;
+  try {
+    cfg = JSON.parse(raw);
+  } catch (e) {
+    setErr("config.json 解析失败：" + (e && e.message ? e.message : e));
+    return;
+  }
+  let m;
+  try {
+    m = parseConfig(cfg, { modelId: "custom-config" });
+  } catch (e) {
+    setErr("自定义 config 不受支持：" + (e && e.message ? e.message : e));
+    return;
+  }
+  if (!m.hidden || !m.layers) {
+    setErr("自定义 config 未能读取 hidden_size / num_hidden_layers");
+    return;
+  }
+  S.customConfig = cfg;
+  S.modelName = "custom-config";
+  S.modelLabel = "自定义 config";
+  S.weightRepo = "custom";
+  ensureCustomOption();
+  applyParsedModel({ ...EMPTY_MODEL, ...m }, true, { modelId: "custom-config", label: "自定义 config" });
 }
 
 function onModelPicked() {
   S.modelName = $("ovModel").value;
-  loadWeight(repoForModel(S.modelName), true);
+  const entry = catalogModel(S.modelName);
+  if (!entry) return;
+  S.seriesId = entry.seriesId;
+  const url = new URL(location.href);
+  url.searchParams.set("series", entry.seriesId);
+  url.searchParams.set("model", entry.modelId);
+  history.replaceState(null, "", url);
+  loadModel(entry, true);
+}
+
+function onSeriesPicked() {
+  S.seriesId = $("ovSeries").value;
+  const series = MemoryModelCatalog.listSeries().find((item) => item.seriesId === S.seriesId);
+  S.modelName = series.defaultModelId;
+  fillModelSelect();
+  onModelPicked();
 }
 
 (function applyQueryModel() {
   const q = new URLSearchParams(location.search).get("model");
-  if (q && allQwenModels().includes(q)) S.modelName = q;
+  const entry = q ? MemoryModelCatalog.findModel(q) : null;
+  if (entry && entry.supported) {
+    S.modelName = entry.modelId;
+    S.seriesId = entry.seriesId;
+  }
 })();
+fillSeriesSelect();
 fillModelSelect();
+$("ovSeries").addEventListener("change", onSeriesPicked);
 $("ovModel").addEventListener("change", onModelPicked);
+$("ovLayers").addEventListener("input", onLayersInput);
+$("ovLayers").addEventListener("change", onLayersInput);
+$("customCfgLoad").addEventListener("click", onCustomConfigLoad);
 $("mapBody").addEventListener("click", (e) => {
   const sum = e.target.closest(".tree summary");
   if (!sum) return;
@@ -1002,11 +1348,11 @@ $("mapBody").addEventListener("click", (e) => {
   if (d && d.tagName === "DETAILS") d.open = !d.open;
 });
 document.querySelectorAll("input, select").forEach((el) => {
-  if (el.id === "ovModel") return;
+  if (el.id === "ovModel" || el.id === "ovSeries" || el.id === "ovLayers") return;
   el.addEventListener("input", () => { readForm(); render(); });
   el.addEventListener("change", () => { readForm(); render(); });
 });
-loadWeight(repoForModel(S.modelName), true);
+loadModel(catalogModel(S.modelName), true);
 </script>
 </body>
 </html>
