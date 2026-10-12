@@ -214,11 +214,11 @@
           <h1>FSDP 显存建模</h1>
         </div>
         <div class="top-actions">
-          <a class="top-link" href="https://github.com/zyang6/qwen-tools" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库">
+          <a class="top-link" href="https://github.com/easiercloud/qwen-tools-glmdev" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库">
             <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
             GitHub
           </a>
-          <a class="top-link" href="https://github.com/zyang6/qwen-tools/issues/new?title=%5Bmemory%2Ffsdp%5D%20%E5%8F%8D%E9%A6%88" target="_blank" rel="noopener noreferrer" aria-label="反馈问题">
+          <a class="top-link" href="https://github.com/easiercloud/qwen-tools-glmdev/issues/new?title=%5Bmemory%2Ffsdp%5D%20%E5%8F%8D%E9%A6%88" target="_blank" rel="noopener noreferrer" aria-label="反馈问题">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="13"></line><line x1="12" y1="16.5" x2="12.01" y2="16.5"></line></svg>
             反馈
           </a>
@@ -231,9 +231,24 @@
     <aside class="side">
       <section class="card">
         <p class="kicker">Configuration</p>
-        <label class="f">模型
-          <select id="ovModel"></select>
-        </label>
+        <div class="fields" id="modelSelectionFields">
+          <label class="f" id="modelField">模型
+            <select id="ovModel"></select>
+          </label>
+          <label class="f" id="artifactField">Checkpoint / artifact
+            <select id="ovArtifact"></select>
+          </label>
+          <label class="f" id="trainingModeField">训练方式
+            <select id="ovTrainingMode"></select>
+          </label>
+          <label class="f" id="loraRankField">LoRA rank
+            <input id="ovLoraRank" type="number" min="1" step="1" value="16" />
+          </label>
+        </div>
+        <div class="checks" id="mtpChecks">
+          <label class="chk" id="mtpTrainField"><input id="ovMtpEnabled" type="checkbox" /> 训练 MTP 辅助目标</label>
+        </div>
+        <p class="hint" id="trainingBoundary"></p>
         <div class="chips" id="chips"></div>
         <div class="err" id="err"></div>
       </section>
@@ -301,6 +316,9 @@
     </main>
   </div>
 
+<script src="model-catalog.js"></script>
+<script src="training-policies.js"></script>
+<script src="glm-modeling.js"></script>
 <script>
 const GIB = 1024 ** 3;
 const MIB = 1024 ** 2;
@@ -320,6 +338,9 @@ const DEFAULT_35B = {
   arch: "Qwen3_5MoeForConditionalGeneration",
   topk: 8,
 };
+
+const DEFAULT_12L = { ...DEFAULT_35B, layers: 12 };
+const DEFAULT_20L = { ...DEFAULT_35B, layers: 20 };
 
 const EMPTY_MODEL = {
   vocab: 0, hidden: 0, layers: 0, experts: 0, moeI: 0, shareI: 0, denseI: 0,
@@ -341,7 +362,7 @@ function defaultTrainMoe() {
     mbs: 4, seq: 512, chunk: 2, prefetch: 1, wrap: 0,
     freezeVisual: false, recompute: true, offload: true,
     skipGdn: true, gmm: true, hbm: 64, mtp: 0, hcclMB: 200,
-    fragG: 1, ptaG: 1, osG: 3.5,
+    fragG: 1, ptaG: 1, osG: 3.5, mtpEnabled: false,
   };
 }
 
@@ -351,63 +372,68 @@ function defaultTrainDense() {
     mbs: 2, seq: 448, chunk: 0, prefetch: 1, wrap: 1,
     freezeVisual: false, recompute: true, offload: true,
     skipGdn: true, gmm: false, hbm: 64, mtp: 0, hcclMB: 200,
-    fragG: 1, ptaG: 1, osG: 3.5,
+    fragG: 1, ptaG: 1, osG: 3.5, mtpEnabled: false,
   };
 }
 
-const QWEN_GROUPS = [
-  {
-    label: "Qwen3.8",
-    models: ["Qwen3.8-27B", "Qwen3.8-2.4T-A95B"],
-  },
-  {
-    label: "Qwen3.6",
-    models: ["Qwen3.6-27B", "Qwen3.6-35B-A3B", "Qwen3.6-35B-A3B (20L)"],
-  },
-  {
-    label: "Qwen3.5",
-    models: [
-      "Qwen3.5-0.8B", "Qwen3.5-2B", "Qwen3.5-4B", "Qwen3.5-9B", "Qwen3.5-27B",
-      "Qwen3.5-35B-A3B", "Qwen3.5-122B-A10B", "Qwen3.5-397B-A17B",
-    ],
-  },
-  {
-    label: "Qwen3 VL",
-    models: [
-      "Qwen3-VL-8B-Instruct", "Qwen3-VL-32B-Instruct",
-      "Qwen3-VL-30B-A3B-Instruct", "Qwen3-VL-235B-A22B-Instruct",
-    ],
-  },
-  {
-    label: "Qwen3",
-    models: [
-      "Qwen3-0.6B", "Qwen3-1.7B", "Qwen3-4B", "Qwen3-8B", "Qwen3-14B", "Qwen3-32B",
-      "Qwen3-4B-Instruct", "Qwen3-8B-Instruct", "Qwen3-14B-Instruct", "Qwen3-32B-Instruct",
-      "Qwen3-30B-A3B", "Qwen3-30B-A3B-Thinking-2507",
-      "Qwen3-235B-A22B", "Qwen3-235B-A22B-Instruct-2507",
-      "Qwen3-Next-80B-A3B-Instruct",
-      "Qwen3-Coder-30B-A3B-Instruct", "Qwen3-Coder-480B-A35B-Instruct",
-    ],
-  },
-  {
-    label: "Qwen2.5 VL",
-    models: ["Qwen2.5-VL-7B-Instruct", "Qwen2.5-VL-72B-Instruct"],
-  },
-];
-
-function allQwenModels() {
-  return QWEN_GROUPS.flatMap((g) => g.models);
+function trainingApi() { return globalThis.MemoryTrainingPolicies || null; }
+function modeId(item) { return String(item && (item.id || item.modeId || item.value || item.key) || ""); }
+function modeLabel(item) { return String(item && (item.label || item.name || item.title) || modeId(item)); }
+function modeBoundary(item) { return String(item && (item.boundary || item.description || item.note) || ""); }
+function availableTrainingModes() {
+  const api = trainingApi();
+  if (!api || typeof api.listTrainingModes !== "function") {
+    throw new Error("training-policies.js 未加载");
+  }
+  return api.listTrainingModes();
 }
 
-function repoForModel(name) {
-  return name === "Qwen3.6-35B-A3B (20L)" ? "local:20L" : "Qwen/" + name;
+function normalizeModeId(value) {
+  const id = String(value || "").toLowerCase().replace(/-/g, "_");
+  if (id.includes("qlora")) return "qlora";
+  if (id.includes("lora")) return "lora";
+  if (id.includes("reinforcement") || id.includes("actor") || id === "rl") return "rl_actor";
+  if (id.includes("sft")) return "full_sft";
+  if (id.includes("pretrain")) return "pretrain";
+  return id || "pretrain";
 }
 
+function artifactsForModel(modelId) {
+  const api = trainingApi();
+  if (!api || typeof api.listArtifacts !== "function") throw new Error("training-policies.js 未加载");
+  return api.listArtifacts(modelId);
+}
+
+function resolvedArtifact() {
+  const api = trainingApi();
+  if (!api || typeof api.resolveArtifact !== "function") throw new Error("training-policies.js 未加载");
+  return api.resolveArtifact({ modelId: S.modelName, artifactId: S.artifactId });
+}
+
+function artifactDefaultId(modelId) {
+  const api = trainingApi();
+  if (!api || typeof api.defaultArtifactId !== "function") throw new Error("training-policies.js 未加载");
+  return api.defaultArtifactId(modelId);
+}
+
+function initialEntry() {
+  return MemoryModelCatalog.findModel(MemoryModelCatalog.defaultModelId)
+    || MemoryModelCatalog.findModel("qwen3.5-27b")
+    || MemoryModelCatalog.findModel("glm-5.2")
+    || MemoryModelCatalog.listModels().find((entry) => entry.supported);
+}
+
+const INITIAL_ENTRY = initialEntry();
 const S = {
-  modelName: "Qwen3.5-27B",
-  weightRepo: "Qwen/Qwen3.5-27B",
+  seriesId: INITIAL_ENTRY.seriesId,
+  modelName: INITIAL_ENTRY.modelId,
+  modelLabel: INITIAL_ENTRY.label,
+  loadedModelId: null,
+  artifactId: null,
+  weightRepo: INITIAL_ENTRY.repo,
   model: { ...EMPTY_MODEL },
-  train: defaultTrainDense(),
+  train: { ...defaultTrainMoe(), trainingMode: "pretrain", loraRank: 16 },
+  loadState: "loading",
 };
 
 function $(id) { return document.getElementById(id); }
@@ -457,8 +483,14 @@ function detectFamily(m) {
   return { id: "qwen3_dense_text", label: "Qwen3 Dense 文本" };
 }
 
-function parseConfig(cfg) {
+function parseConfig(cfg, metadata) {
   const text = cfg.text_config || cfg.language_config || cfg;
+  if (GlmMemoryModel.isGlmMoeDsaConfig(cfg)) {
+    return GlmMemoryModel.parseConfig(cfg, metadata);
+  }
+  if (String(text.model_type || "").startsWith("glm")) {
+    throw new Error("暂不支持该 GLM 架构：" + (text.model_type || "unknown"));
+  }
   const vis = cfg.vision_config || {};
   const nQ = pick(text, ["num_attention_heads"], 0);
   const H = pick(text, ["hidden_size"], 0);
@@ -496,6 +528,17 @@ function parseConfig(cfg) {
     modelType: cfg.model_type || text.model_type || "",
     topk: pick(text, ["num_experts_per_tok"], 8) || 8,
   };
+}
+
+function localModelForEntry(entry) {
+  if (!entry) return null;
+  if (entry.capabilities && entry.capabilities.vendor === "zhipuai") {
+    const cfg = GlmMemoryModel.makePresetConfig(entry.modelId);
+    return cfg ? GlmMemoryModel.parseConfig(cfg, { modelId: entry.modelId }) : null;
+  }
+  if (entry.source === "local:12L") return { ...DEFAULT_12L, layerTypes: defaultLayerTypes(12, 4) };
+  if (entry.source === "local:20L") return { ...DEFAULT_20L, layerTypes: defaultLayerTypes(20, 4) };
+  return null;
 }
 
 function compute(model, train) {
@@ -572,23 +615,123 @@ function compute(model, train) {
     vitPatch = p.inCh * p.tPatch * p.patch * p.patch * Hv + Hv;
     vitBlock = Hv * (Hv * 3) + (Hv * 3) + Hv * Hv + Hv + Hv * Iv + Iv + Iv * Hv + Hv + 2 * Hv;
     vitMerger = Hv + (Hv * sm * sm) ** 2 + (Hv * sm * sm) + (Hv * sm * sm) * out + out + p.nPos * Hv;
-    if (!p.freezeVisual) vit = vitPatch + p.vitDepth * vitBlock + vitMerger;
+    vit = vitPatch + p.vitDepth * vitBlock + vitMerger;
   }
 
-  const N = textN + vit;
-  const nExpert = E > 0 ? (L + mtp) * (gateUp + down) : 0;
-  const perCard = pOk ? N / P : null;
-  const paramG = pOk ? perCard * bw / GIB : null;
-  const gradBf16G = pOk ? perCard * bg / GIB : null;
-  const gradG = pOk ? 2 * gradBf16G : null;
-  const adamG = pOk ? perCard * nAdam * bAdam / GIB : null;
+  const isGlm = model && model.family === "glm";
+  // Preserve the original Qwen planner contract: its "冻结 ViT" switch
+  // excludes the tower from N. GLM has no visual tower in this architecture.
+  if (!isGlm && p.freezeVisual) vit = 0;
+  let glmComponents = null;
+  let glmSummary = null;
+  let N = textN + vit;
+  let nExpert = E > 0 ? (L + mtp) * (gateUp + down) : 0;
+  let expertNumel = gateUp + down;
+  let attnAvg = L ? (nFull * fullAttn + nGdn * gdn) / L : 0;
+  let layerNumel = expertNumel + moeOther + attnAvg + 2 * H;
+  let unitNumel = p.wrap ? layerNumel : (expertNumel || layerNumel);
+  if (isGlm) {
+    glmComponents = GlmMemoryModel.buildComponents(model);
+    glmSummary = GlmMemoryModel.summarizeComponents(model, glmComponents);
+    N = glmSummary.N;
+    nExpert = glmSummary.nExpert;
+    const routed = glmComponents.find((item) => item.key === "routed_experts");
+    expertNumel = routed ? routed.unitNumel : 0;
+    const perLayer = (groups) => glmComponents
+      .filter((item) => groups.includes(item.group))
+      .reduce((sum, item) => sum + item.unitNumel, 0);
+    const mlaPer = perLayer(["mla"]);
+    const indexerPer = perLayer(["indexer"]);
+    const sparsePer = perLayer(["experts", "router", "shared_experts"]);
+    const densePer = perLayer(["dense_mlp"]);
+    attnAvg = mlaPer + indexerPer;
+    layerNumel = mlaPer + indexerPer + Math.max(sparsePer, densePer) + 2 * H;
+    unitNumel = p.wrap ? layerNumel : (expertNumel || layerNumel);
+  }
+
+  const api = trainingApi();
+  const artifact = resolvedArtifact();
+  const normalizedMode = normalizeModeId(p.trainingMode);
+  const rawAdapterRatio = 2 * Math.max(Number(p.loraRank) || 16, 1) / Math.max(H, 1);
+  const adapterRatio = Math.min(Math.max(rawAdapterRatio, 0.0001), 1);
+  const mtpEnabled = p.mtpEnabled !== false;
+  const glmEligibleParams = glmComponents
+    ? glmComponents.reduce((sum, component) => {
+      if (!component.trainable || component.frozen) return sum;
+      return sum + component.numel - (mtpEnabled ? 0 : (Number(component.mtpNumel) || 0));
+    }, 0)
+    : null;
+  const genericEligibleParams = Math.max(textN - (mtpEnabled ? 0 : mtpN), 0)
+    + (p.freezeVisual ? 0 : vit);
+  const policy = api.resolveTrainingPolicy({
+    mode: normalizedMode,
+    modelId: S.modelName,
+    artifact,
+    totalTrainableParams: glmSummary ? glmEligibleParams : genericEligibleParams,
+    trainableRatio: adapterRatio,
+    trainWeightBytes: 2,
+    gradBytes: 4,
+    fullOptimizerBytes: isGlm ? 12 : 8,
+    mtpEnabled,
+  });
+  let parameterMemory = null;
+  if (pOk && glmComponents) {
+    parameterMemory = api.aggregateComponentMemory({
+      components: glmComponents,
+      rankScale: () => 1 / P,
+      policy,
+      optimizerType: "adamw",
+      optimizerOffload: false,
+      mtpEnabled,
+    });
+  } else if (pOk) {
+    parameterMemory = api.aggregateComponentMemory({
+      components: [
+        {
+          key: "text",
+          numel: textN,
+          mtpNumel: mtpN,
+          trainable: true,
+          parallel: "replicated",
+          optimizer: "adamw",
+          dtypeBytes: 2,
+        },
+        {
+          key: "visual",
+          numel: vit,
+          trainable: true,
+          frozen: !!p.freezeVisual,
+          parallel: "replicated",
+          optimizer: "adamw",
+          dtypeBytes: 2,
+        },
+      ],
+      rankScale: () => 1 / P,
+      policy,
+      optimizerType: "adamw",
+      optimizerOffload: false,
+      mtpEnabled,
+    });
+  }
+  if (rawAdapterRatio > 1) {
+    warns.push("LoRA rank 推导的 adapter 比例超过 100%，已按 100% 上限计算；请用真实 target_modules 参数量校准");
+  }
+  if (policy.warnings) warns.push(...policy.warnings);
+  if (normalizedMode === "qlora") {
+    warns.push("QLoRA 的反量化 kernel workspace 尚未校准，当前动态项是下界");
+  }
+  if (normalizedMode === "rl_actor") {
+    warns.push("强化学习仅计 actor update，不含 rollout/reference/reward/critic 常驻");
+  }
+  const perCard = parameterMemory ? parameterMemory.perRank : (pOk ? N / P : null);
+  const paramG = parameterMemory ? parameterMemory.weightBytes / GIB : (pOk ? perCard * bw / GIB : null);
+  const gradG = parameterMemory ? parameterMemory.gradBytes / GIB : (pOk ? perCard * 4 / GIB : null);
+  const gradBf16G = isNum(gradG) ? gradG / 2 : null;
+  const adamG = parameterMemory ? parameterMemory.optimizerBytes / GIB : (pOk ? perCard * nAdam * bAdam / GIB : null);
   const staticG = sumNum(paramG, adamG);
 
-  const expertNumel = gateUp + down;
-  const attnAvg = L ? (nFull * fullAttn + nGdn * gdn) / L : 0;
-  const layerNumel = expertNumel + moeOther + attnAvg + 2 * H;
-  const unitNumel = p.wrap ? layerNumel : (expertNumel || layerNumel);
-  const Ufull = unitNumel * bw / GIB;
+  const baseResidentBytes = policy.fullUpdate ? bw : (artifact.storageBytesPerParam || bw);
+  const Ufull = unitNumel * baseResidentBytes / GIB;
   const U = Ufull / EP;
 
   let prefetch = p.prefetch;
@@ -604,8 +747,9 @@ function compute(model, train) {
   }
   const agG = U;
   const copyG = U;
-  const reduceInG = U * reduceScale;
-  const gmmG = (p.gmm && E > 0 && !p.wrap) ? U : 0;
+  const trainableUnitRatio = policy.adapterBased ? adapterRatio : 1;
+  const reduceInG = unitNumel * trainableUnitRatio * 4 / GIB;
+  const gmmG = (p.gmm && E > 0 && !p.wrap && policy.fullUpdate) ? U : 0;
   const dynG = sumNum(agG, copyG, prefG, reduceInG, gmmG);
 
   const seq = p.seq;
@@ -662,11 +806,15 @@ function compute(model, train) {
     samplesFwd, tokens, seqLocal, liveLayers, mtp, wrap: !!p.wrap, bw, bReduce, reduceScale,
     topk, warns, gateUp, down, expertNumel, unitNumel, moeOther, attnAvg,
     embed, lm, finalNorm, router, shared, sharedGate, denseMlp, mlpPer, mlpLayersN,
-    fullAttn, gdn, attn, mtpN, textN, vitPatch, vitBlock, vitMerger, vitDepth: p.vitDepth || 0,
+    fullAttn, gdn, attn, mtpN, textN: isGlm ? N : textN, vitPatch, vitBlock, vitMerger, vitDepth: p.vitDepth || 0,
     shareI, denseI: p.denseI || 0, nQ: p.nQ, nKV: p.nKV, headDim: p.headDim,
     attnGate: !!p.attnGate, tie: !!p.tie, freezeVisual: !!p.freezeVisual,
     dk, dv, gdnKH: p.gdnKH || 0, gdnVH: p.gdnVH || 0, gdnConv: p.gdnConv || 0, gdnVD: p.gdnVD || 0,
     fullQ, fullK, fullV, fullO, fullQkNorm,
+    isGlm, glmComponents, glmSummary, artifact, policy, parameterMemory,
+    adapterRatio, adapterN: parameterMemory && parameterMemory.rankAdapter ? parameterMemory.rankAdapter * P : 0,
+    rankFrozen: parameterMemory ? parameterMemory.rankFrozen : 0,
+    baseResidentBytes,
   };
 }
 
@@ -675,14 +823,19 @@ function applyDenseScheme(r, model) {
   r.isMoe = isMoe;
   r.denseScheme = null;
   r.uHeadG = null;
+  r.headReduceG = null;
   if (isMoe) return r;
-  const uHeadG = (model.vocab || 0) * (model.hidden || 0) * 2 / GIB;
+  const headNumel = (model.vocab || 0) * (model.hidden || 0);
+  const uHeadG = headNumel * r.baseResidentBytes / GIB;
+  const headTrainableRatio = r.policy.adapterBased ? r.adapterRatio : 1;
+  const headReduceG = headNumel * headTrainableRatio * 4 / GIB;
   const dynA = r.dynG;
-  const dynB = sumNum(uHeadG, 2 * uHeadG);
+  const dynB = sumNum(uHeadG, headReduceG);
   const peakA = sumNum(r.staticG, r.gradG, dynA, r.actG);
   const peakB = sumNum(r.staticG, r.gradG, dynB, r.actG);
   const pickB = !isNum(peakA) || (isNum(peakB) && peakB >= peakA);
   r.uHeadG = uHeadG;
+  r.headReduceG = headReduceG;
   r.denseScheme = pickB ? "B" : "A";
   if (pickB) {
     r.dynG = dynB;
@@ -694,6 +847,8 @@ function applyDenseScheme(r, model) {
 
 function readForm() {
   const t = S.train;
+  t.trainingMode = normalizeModeId($("ovTrainingMode").value);
+  t.loraRank = readNum("ovLoraRank");
   t.P = readNum("ovP");
   t.EP = 1;
   t.CP = 1;
@@ -702,8 +857,9 @@ function readForm() {
   t.bReduce = 4;
   t.hbm = readNum("ovHbm");
   t.hcclMB = readNum("ovHccl");
-  t.mtp = readNum("ovMtp");
-  S.model.mtp = isNum(t.mtp) ? Math.max(t.mtp, 0) : 0;
+  t.mtp = S.model.family === "glm" ? (S.model.mtp || 0) : readNum("ovMtp");
+  if (S.model.family !== "glm") S.model.mtp = isNum(t.mtp) ? Math.max(t.mtp, 0) : 0;
+  t.mtpEnabled = S.model.family === "glm" ? $("ovMtpEnabled").checked : true;
   t.seq = readNum("ovSeq");
   t.mbs = readNum("ovMbs");
   t.chunk = readNum("ovChunk");
@@ -718,11 +874,15 @@ function readForm() {
 function writeForm() {
   const t = S.train;
   $("ovModel").value = S.modelName;
+  $("ovArtifact").value = S.artifactId || "";
+  $("ovTrainingMode").value = t.trainingMode || "pretrain";
+  writeNum("ovLoraRank", t.loraRank == null ? 16 : t.loraRank);
   writeNum("ovP", t.P);
   $("ovWrap").value = String(t.wrap || 0);
   writeNum("ovHbm", t.hbm);
   writeNum("ovHccl", t.hcclMB);
-  writeNum("ovMtp", t.mtp);
+  writeNum("ovMtp", S.model.family === "glm" ? S.model.mtp : t.mtp);
+  $("ovMtpEnabled").checked = t.mtpEnabled !== false && (S.model.mtp || 0) > 0;
   writeNum("ovSeq", t.seq);
   writeNum("ovMbs", t.mbs);
   writeNum("ovChunk", t.chunk);
@@ -737,8 +897,44 @@ function writeForm() {
 
 function syncTypeUi() {
   const moe = (S.model.experts || 0) > 0;
+  const glm = S.model.family === "glm";
+  let mode = normalizeModeId(S.train.trainingMode);
+  $("artifactField").style.display = glm ? "" : "none";
+  $("trainingModeField").style.display = glm ? "" : "none";
+  $("trainingBoundary").style.display = glm ? "" : "none";
+  $("modelField").style.gridColumn = glm ? "" : "1 / -1";
+  $("mtpChecks").style.display = glm ? "" : "none";
   $("wrapField").style.display = moe ? "" : "none";
   $("gmmRow").style.display = moe ? "" : "none";
+  $("loraRankField").style.display = glm && (mode === "lora" || mode === "qlora") ? "" : "none";
+  if (!glm) {
+    S.train.trainingMode = "pretrain";
+    S.train.mtpEnabled = true;
+    mode = "pretrain";
+  }
+  $("ovMtp").disabled = glm;
+  $("ovMtp").title = glm
+    ? "GLM checkpoint 结构固定；请用独立开关控制 MTP 是否训练"
+    : "";
+  const hasMtp = (S.model.mtp || 0) > 0;
+  $("ovMtpEnabled").disabled = !hasMtp;
+  $("mtpTrainField").style.display = glm && hasMtp ? "" : "none";
+  const selected = availableTrainingModes().find((item) => normalizeModeId(modeId(item)) === mode);
+  const base = modeBoundary(selected);
+  const artifact = resolvedArtifact();
+  const compatibility = artifact.trainingCompatibility === "runtime-dependent"
+    ? "（通用格式估算，未验证当前框架可直接加载）"
+    : "";
+  const artifactText = `Artifact ${artifact.label || artifact.artifactId}${compatibility}：权重常驻参考 ${artifact.storageBytesPerParam || 2} B/参数` +
+    (artifact.checkpointBytes ? `，已知工件 ${(artifact.checkpointBytes / GIB).toFixed(1)} GiB` : "") +
+    "。A/C 后缀不会自动按比例缩小 autograd 激活或普通训练显存。";
+  const extra = mode === "rl_actor"
+    ? "仅计 actor update；不包含 rollout / reference / reward / critic 常驻与 KV cache。"
+    : (mode === "lora" || mode === "qlora"
+      ? "Adapter 参数由 rank 按目标线性层比例估算，精确值需用实际 target_modules 校准。" +
+        (mode === "qlora" ? " 低比特 base 含量化元数据估算；反量化 kernel workspace 未校准，动态项是下界。" : "")
+      : "Checkpoint 精度只影响加载；全参更新的稳态权重按 BF16 计。");
+  $("trainingBoundary").textContent = [artifactText, base, extra].filter(Boolean).join(" ");
 }
 
 function partsOf(r) {
@@ -763,7 +959,7 @@ function render() {
 
   $("vTotal").innerHTML = isNum(tot) ? fmtG(tot) + "<span>GiB</span>" : "null";
   $("vTotalSub").textContent = isNum(tot)
-    ? "npu-smi Used 口径（含 HCCL / 碎片 / PTA / OS）"
+    ? (r.isGlm ? (r.policy.label || r.policy.modeId) + " · " : "") + "npu-smi Used 口径（含 HCCL / 碎片 / PTA / OS）"
     : "配置不完整或除数为 0，相关项为 null";
   if (!isNum(hbm)) $("vRemain").textContent = "单卡容量为空，余量无法计算";
   else if (!isNum(tot)) $("vRemain").textContent = "预估为 null，余量无法计算";
@@ -779,6 +975,14 @@ function render() {
   const chips = [
     `<span class="chip ${r.isMoe ? "warn" : "ok"}">${r.isMoe ? "MOE" : "DENSE"}</span>`,
   ];
+  if (r.isGlm) {
+    chips.push(`<span class="chip ok">${r.policy.label || r.policy.modeId}</span>`);
+    chips.push(`<span class="chip">${r.artifact.label || r.artifact.artifactId} artifact</span>`);
+    chips.push(`<span class="chip warn">GLM 组件账本</span>`);
+    chips.push(`<span class="chip ${S.train.mtpEnabled ? "ok" : "warn"}">MTP 训练 ${S.train.mtpEnabled ? "ON" : "OFF"}</span>`);
+    if (r.policy.adapterBased) chips.push(`<span class="chip">Adapter ${fmtN(r.adapterN)} params</span>`);
+  }
+  if (r.freezeVisual) chips.push(`<span class="chip warn">ViT 不计入 N（Qwen 兼容口径）</span>`);
   if ((S.model.vitDepth || 0) > 0 || /[-_]?VL[-_]?/i.test(S.modelName)) {
     chips.push(`<span class="chip">VL</span>`);
   }
@@ -800,26 +1004,29 @@ function render() {
     : `liveLayers × B × S × H × 2 = ${r.liveLayers} × ${r.samplesFwd == null ? "null" : r.samplesFwd} × ${r.seq == null ? "空" : r.seq} × ${r.H} × 2 = null`;
   const useHead = !r.isMoe && r.denseScheme === "B";
   const dynEq = useHead
-    ? `U_head + 2 U_head`
+    ? `U_head + head 可训练梯度工作集`
     : `all-gather + copy_out + prefetch + foreach_reduce` + (r.isMoe ? ` + GMM` : ``);
   const headNumel = r.V * r.H;
   let uEq;
   if (useHead) {
-    uEq = `U_head = V × H × 2 / 1024³ = ${fmtN(headNumel)} × 2 / 1024³ = ${fmtG(r.uHeadG)} GiB`;
+    uEq = `U_head = V × H × ${r.baseResidentBytes} B / 1024³ = ${fmtN(headNumel)} × ${r.baseResidentBytes} / 1024³ = ${fmtG(r.uHeadG)} GiB`;
   } else if (!r.wrap && r.E > 0) {
-    uEq = `U = (gate_up + down) × 2 / 1024³ = ${fmtN(r.expertNumel)} × 2 / 1024³ = ${fmtG(r.Ufull)} GiB`;
+    uEq = `U = (gate_up + down) × ${r.baseResidentBytes} B / 1024³ = ${fmtN(r.expertNumel)} × ${r.baseResidentBytes} / 1024³ = ${fmtG(r.Ufull)} GiB`;
   } else {
-    uEq = `U = 一层 numel × 2 / 1024³ = ${fmtN(r.unitNumel)} × 2 / 1024³ = ${fmtG(r.Ufull)} GiB`;
+    uEq = `U = 一层 numel × ${r.baseResidentBytes} B / 1024³ = ${fmtN(r.unitNumel)} × ${r.baseResidentBytes} / 1024³ = ${fmtG(r.Ufull)} GiB`;
   }
-  const wEq = (!isNum(r.N) || !isNum(r.P) || r.P === 0)
-    ? `N/P × 2 = ${fmtN(r.N)} / ${r.P == null ? "空" : r.P} × 2 = null`
-    : `N/P × 2 = ${fmtN(r.N)} / ${r.P} × 2 = ${fmtN(r.N / r.P * 2)} B = ${fmtG(r.paramG)} GiB`;
-  const gEq = (!isNum(r.N) || !isNum(r.P) || r.P === 0)
-    ? `N/P × 4 = ${fmtN(r.N)} / ${r.P == null ? "空" : r.P} × 4 = null`
-    : `N/P × 4 = ${fmtN(r.N)} / ${r.P} × 4 = ${fmtN(r.N / r.P * 4)} B = ${fmtG(r.gradG)} GiB`;
-  const oEq = (!isNum(r.N) || !isNum(r.P) || r.P === 0)
-    ? `N/P × 8 = ${fmtN(r.N)} / ${r.P == null ? "空" : r.P} × 8 = null`
-    : `N/P × 8 = ${fmtN(r.N)} / ${r.P} × 8 = ${fmtN(r.N / r.P * 8)} B = ${fmtG(r.adamG)} GiB`;
+  const pm = r.parameterMemory;
+  const wEq = !pm
+    ? `参数分片无法计算`
+    : r.policy.adapterBased
+      ? `冻结 base ${fmtN(pm.rankBase)} × ${r.baseResidentBytes} B + adapter ${fmtN(pm.rankAdapter)} × 2 B = ${fmtG(r.paramG)} GiB`
+      : `全参数分片 × BF16 2 B = ${fmtG(r.paramG)} GiB`;
+  const gEq = !pm
+    ? `可训练参数分片 × fp32 reduce = null`
+    : `${fmtN(pm.rankTrainable)} × 4 B = ${fmtG(r.gradG)} GiB`;
+  const oEq = !pm
+    ? `可训练参数分片 × 12 B = null`
+    : `${fmtN(pm.rankTrainable)} × ${r.policy.adapterBased ? r.policy.adapterOptimizerBytes : r.policy.fullOptimizerBytes} B = ${fmtG(r.adamG)} GiB`;
   const hcclEq = !isNum(r.nComm) || !isNum(r.hcclMB)
     ? `n_comm × BUFFSIZE × 2 = ${r.nComm} × ${r.hcclMB == null ? "空" : r.hcclMB} × 2 = null`
     : `n_comm × BUFFSIZE × 2 = ${r.nComm} × ${r.hcclMB} × 2 = ${fmtN(r.nComm * r.hcclMB * 2)} MB = ${fmtG(r.hcclG)} GiB`;
@@ -863,29 +1070,48 @@ function render() {
   if (r.mtp > 0) textKids += leaf("MTP", `${r.mtp} 层`, fmtN(r.mtpN));
   let vitKids;
   if (r.vitDepth > 0 && r.freezeVisual) {
-    vitKids = leaf("冻结", "不计入 N", "0");
+    vitKids = leaf("冻结", "Qwen 兼容口径：不计入 N", "0");
   } else if (r.vitDepth > 0) {
     vitKids =
       leaf("patch embed", `in_ch × t_patch × patch² × H_v + H_v`, fmtN(r.vitPatch)) +
       leaf(`${r.vitDepth} blocks`, `${r.vitDepth} × ${fmtN(r.vitBlock)}`, fmtN(r.vitDepth * r.vitBlock)) +
       leaf("merger + 位置编码", `merger + n_pos × H_v`, fmtN(r.vitMerger));
   }
-  const nTree =
-    `<div class="tree">` +
-    branch("N = Text + ViT", `${fmtN(r.textN)} + ${fmtN(r.vit)}`, fmtN(r.N),
-      branch("Text", `词表 + MLP + 注意力`, fmtN(r.textN), textKids) +
-      (vitKids
-        ? branch("ViT", r.freezeVisual ? "冻结" : "patch + blocks + merger", fmtN(r.vit), vitKids)
-        : leaf("ViT", "无视觉塔", "0"))) +
-    `</div>`;
+  let nTree;
+  if (r.isGlm && r.glmSummary) {
+    const s = r.glmSummary;
+    const vocab = s.embed + s.lm + s.finalNorm;
+    const glmKids =
+      leaf("词表 / 输出头 / final norm", "embed + lm_head + final_norm", fmtN(vocab)) +
+      leaf("MLA", "q/kv LoRA + o_proj", fmtN(s.mlaN)) +
+      leaf("DSA indexer", `full indexer ${s.fullIndexerTotal} 层`, fmtN(s.indexerN)) +
+      leaf("Dense MLP", `${s.denseRegular} 层`, fmtN(s.denseMlpN)) +
+      leaf("路由专家", `${s.sparseTotal} 层 × ${r.E} experts`, fmtN(s.expertN)) +
+      leaf("router + shared experts", "router / shared / correction", fmtN(s.routerN + s.sharedN)) +
+      leaf("norm", "MLA / decoder / MTP norms", fmtN(s.normN)) +
+      (s.mtpExtraN ? leaf("MTP 额外投影", "eh_proj 等；MTP 的 MLA/MoE 已计入上述组", fmtN(s.mtpExtraN)) : "") +
+      (s.bufferN ? leaf("非训练 buffer", "router correction（fp32）", fmtN(s.bufferN)) : "");
+    nTree = `<div class="tree">` +
+      branch("GLM 组件账本 N", "MLA + DSA + Dense/MoE + MTP", fmtN(r.N), glmKids, true) +
+      `</div>`;
+  } else {
+    nTree =
+      `<div class="tree">` +
+      branch("N = Text + ViT", `${fmtN(r.textN)} + ${fmtN(r.vit)}`, fmtN(r.N),
+        branch("Text", `词表 + MLP + 注意力`, fmtN(r.textN), textKids) +
+        (vitKids
+          ? branch("ViT", r.freezeVisual ? "冻结" : "patch + blocks + merger", fmtN(r.vit), vitKids)
+          : leaf("ViT", "无视觉塔", "0"))) +
+      `</div>`;
+  }
 
   const dynLis = useHead
     ? li("未分片参数", `U_head`, mem(r.uHeadG)) +
-      li("foreach_reduce 输入", `2U_head　fp32`, mem(isNum(r.uHeadG) ? 2 * r.uHeadG : null))
+      li("foreach_reduce 输入", r.policy.adapterBased ? `仅 adapter 梯度　fp32` : `head 可训练参数　fp32`, mem(r.headReduceG))
     : li("all-gather", `U`, mem(r.agG)) +
       li("copy_out", `U`, mem(r.copyG)) +
       li("prefetch", `prefetch × U　prefetch=${r.prefetch}`, mem(r.prefG)) +
-      li("foreach_reduce 输入", `2U　fp32`, mem(r.reduceInG)) +
+      li("foreach_reduce 输入", r.policy.adapterBased ? `仅 adapter 梯度　fp32` : `可训练参数　fp32`, mem(r.reduceInG)) +
       (r.isMoe ? li("GMM grad_weight", r.gmmG ? `U` : `未启用`, mem(r.gmmG)) : "");
   const dynKids =
     `<div class="nline">${uEq}</div>` +
@@ -899,10 +1125,12 @@ function render() {
       nTree),
     partBlock("优化器", COLORS.adam, r.adamG,
       oEq,
-      `<ul class="sub">${li("AdamW", `exp_avg + exp_avg_sq，两份 fp32`, mem(r.adamG))}</ul>`),
+      `<ul class="sub">${li("AdamW", r.policy.adapterBased || r.isGlm
+        ? `仅可训练参数：FP32 master + exp_avg + exp_avg_sq`
+        : `Qwen 兼容口径：exp_avg + exp_avg_sq，两份 fp32`, mem(r.adamG))}</ul>`),
     partBlock("梯度", COLORS.grad, r.gradG,
       gEq,
-      `<p class="note">reduce-scatter 且 reduce_dtype=fp32 时，各层 reduce 输出是一份 fp32 梯度分片。</p>`),
+      `<p class="note">reduce-scatter 且 reduce_dtype=fp32 时，只为当前策略的可训练参数分配梯度；LoRA/QLoRA 不为冻结 base 分配梯度。</p>`),
     partBlock("动态内存", COLORS.dyn, r.dynG,
       dynEq,
       dynKids),
@@ -938,13 +1166,44 @@ function partBlock(name, color, g, eq, inner, right) {
 function setErr(msg) { $("err").textContent = msg || ""; }
 
 function fillModelSelect() {
-  $("ovModel").innerHTML = QWEN_GROUPS.map((g) =>
-    `<optgroup label="${g.label}">` +
-    g.models.map((name) => `<option value="${name}">${name}</option>`).join("") +
-    `</optgroup>`
-  ).join("");
-  if (!allQwenModels().includes(S.modelName)) S.modelName = "Qwen3.5-27B";
+  // The 12L Qwen entry existed only on the original Megatron page. Keep the
+  // original FSDP model inventory unchanged, then append GLM as a new optgroup.
+  const models = MemoryModelCatalog.listModels().filter((entry) => entry.source !== "local:12L");
+  $("ovModel").innerHTML = MemoryModelCatalog.listSeries().map((series) => {
+    const options = models.filter((entry) => entry.seriesId === series.seriesId).map((entry) => {
+      const suffix = entry.supported ? "" : "（待专项建模）";
+      return `<option value="${entry.modelId}" ${entry.supported ? "" : "disabled"}>${entry.label}${suffix}</option>`;
+    }).join("");
+    return options ? `<optgroup label="${series.seriesLabel}">${options}</optgroup>` : "";
+  }).join("");
+  if (!models.some((entry) => entry.modelId === S.modelName && entry.supported)) {
+    S.modelName = MemoryModelCatalog.defaultModelId;
+  }
   $("ovModel").value = S.modelName;
+}
+
+function fillArtifactSelect(reset) {
+  const artifacts = artifactsForModel(S.modelName);
+  $("ovArtifact").innerHTML = artifacts.map((artifact) => {
+    const bits = artifact.weightBits ? ` · W${artifact.weightBits}` : "";
+    const estimate = artifact.trainingCompatibility === "runtime-dependent" ? " · 格式估算" : "";
+    return `<option value="${artifact.artifactId}">${artifact.label}${bits}${estimate}</option>`;
+  }).join("");
+  if (reset || !artifacts.some((artifact) => artifact.artifactId === S.artifactId)) {
+    S.artifactId = artifactDefaultId(S.modelName);
+  }
+  $("ovArtifact").value = S.artifactId;
+}
+
+function fillTrainingModeSelect() {
+  const modes = availableTrainingModes();
+  $("ovTrainingMode").innerHTML = modes
+    .map((mode) => `<option value="${modeId(mode)}">${modeLabel(mode)}</option>`)
+    .join("");
+  const wanted = normalizeModeId(S.train.trainingMode);
+  const selected = modes.find((mode) => normalizeModeId(modeId(mode)) === wanted) || modes[0];
+  S.train.trainingMode = modeId(selected);
+  $("ovTrainingMode").value = S.train.trainingMode;
 }
 
 function configUrls(repo) {
@@ -969,53 +1228,127 @@ async function fetchRemoteConfig(repo) {
   throw lastErr || new Error("拉取失败");
 }
 
-function applyParsedModel(m, resetTrain) {
-  if (!m.layerTypes || !m.layerTypes.length) {
+function applyParsedModel(m, resetTrain, entry) {
+  if (m.family !== "glm" && (!m.layerTypes || !m.layerTypes.length)) {
     m.layerTypes = defaultLayerTypes(m.layers, m.fullInterval || 4);
   }
   S.model = m;
+  S.loadedModelId = entry.modelId;
+  S.modelLabel = entry.label;
+  S.loadState = "ready";
+  const previousMode = S.train.trainingMode || "pretrain";
+  const previousRank = S.train.loraRank || 16;
+  const previousMtpEnabled = S.train.mtpEnabled;
   if (resetTrain) S.train = (m.experts || 0) > 0 ? defaultTrainMoe() : defaultTrainDense();
-  S.train.mtp = 0;
-  S.model.mtp = 0;
+  S.train.trainingMode = m.family === "glm" ? previousMode : "pretrain";
+  S.train.loraRank = previousRank;
+  if (m.family !== "glm" && resetTrain) m.mtp = 0;
+  S.train.mtp = m.mtp || 0;
+  S.train.mtpEnabled = m.family === "glm"
+    ? (resetTrain ? (m.mtp || 0) > 0 : previousMtpEnabled !== false)
+    : true;
   writeForm();
   render();
 }
 
 let fetchGen = 0;
-async function loadWeight(repo, resetTrain) {
+function clearResult() {
+  $("vTotal").innerHTML = "—<span>GiB</span>";
+  $("vTotalSub").textContent = "模型配置尚未加载完成";
+  $("vRemain").textContent = "";
+  $("hbmBar").innerHTML = "";
+  $("blocks").innerHTML = "";
+  $("mapBody").innerHTML = "";
+  $("mapFoot").textContent = "";
+  $("chips").innerHTML = "";
+}
+
+async function loadModel(entry, resetTrain) {
   const gen = ++fetchGen;
-  S.weightRepo = repo;
-  if (repo === "local:20L") {
-    setErr("");
-    applyParsedModel({ ...DEFAULT_35B, layerTypes: defaultLayerTypes(20, 4) }, resetTrain);
+  const glmEntry = !!(entry && entry.capabilities && entry.capabilities.vendor === "zhipuai");
+  const isolateLoad = glmEntry || (S.model && S.model.family === "glm");
+  if (!entry || !entry.supported) {
+    S.loadState = "error";
+    clearResult();
+    setErr(entry ? entry.supportNote : "未知模型");
     return;
   }
-  setErr("");
-  try {
-    const cfg = await fetchRemoteConfig(repo);
+  S.weightRepo = entry.repo;
+  S.loadedModelId = null;
+  S.loadState = "loading";
+  if (isolateLoad) clearResult();
+  setErr("正在加载 " + entry.label + " 配置…");
+  const local = localModelForEntry(entry);
+  if (local) {
     if (gen !== fetchGen) return;
-    const m = parseConfig(cfg);
+    setErr("");
+    applyParsedModel({ ...EMPTY_MODEL, ...local }, resetTrain, entry);
+    return;
+  }
+  try {
+    const cfg = await fetchRemoteConfig(entry.repo);
+    if (gen !== fetchGen) return;
+    const m = parseConfig(cfg, { modelId: entry.modelId });
     if (!m.hidden || !m.layers) throw new Error("未能读取 hidden_size / num_hidden_layers");
-    applyParsedModel({ ...EMPTY_MODEL, ...m }, resetTrain);
+    setErr("");
+    applyParsedModel({ ...EMPTY_MODEL, ...m }, resetTrain, entry);
   } catch (e) {
     if (gen !== fetchGen) return;
-    setErr("拉取 " + repo + " 的 config.json 失败：" + (e && e.message ? e.message : e));
+    S.loadState = "error";
+    S.loadedModelId = null;
+    if (isolateLoad) clearResult();
+    setErr("拉取 " + entry.repo + " 的 config.json 失败：" + (e && e.message ? e.message : e));
   }
 }
 
-function onModelPicked() {
+async function onModelPicked() {
   S.modelName = $("ovModel").value;
-  loadWeight(repoForModel(S.modelName), true);
+  const entry = MemoryModelCatalog.findModel(S.modelName);
+  if (entry) S.seriesId = entry.seriesId;
+  fillArtifactSelect(true);
+  return loadModel(entry, true);
+}
+
+function onArtifactPicked() {
+  S.artifactId = $("ovArtifact").value;
+  if (S.loadState === "ready") {
+    readForm();
+    syncTypeUi();
+    render();
+  }
+}
+
+function onTrainingModePicked() {
+  readForm();
+  const artifact = resolvedArtifact();
+  if (S.train.trainingMode === "qlora" && !artifact.quantized) {
+    S.artifactId = "w4a8-c8";
+    fillArtifactSelect(false);
+  }
+  syncTypeUi();
+  if (S.loadState === "ready") render();
 }
 
 fillModelSelect();
+fillArtifactSelect(true);
+fillTrainingModeSelect();
 $("ovModel").addEventListener("change", onModelPicked);
+$("ovArtifact").addEventListener("change", onArtifactPicked);
+$("ovTrainingMode").addEventListener("change", onTrainingModePicked);
 document.querySelectorAll("input, select").forEach((el) => {
-  if (el.id === "ovModel") return;
-  el.addEventListener("input", () => { readForm(); render(); });
-  el.addEventListener("change", () => { readForm(); render(); });
+  if (["ovModel", "ovArtifact", "ovTrainingMode"].includes(el.id)) return;
+  el.addEventListener("input", () => {
+    readForm();
+    syncTypeUi();
+    if (S.loadState === "ready") render();
+  });
+  el.addEventListener("change", () => {
+    readForm();
+    syncTypeUi();
+    if (S.loadState === "ready") render();
+  });
 });
-loadWeight(repoForModel(S.modelName), true);
+loadModel(MemoryModelCatalog.findModel(S.modelName), true);
 </script>
 </body>
 </html>

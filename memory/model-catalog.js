@@ -114,10 +114,7 @@
     qwen("qwen-3.5", "qwen3.5-2b", "Qwen3.5-2B", { capabilities: QWEN_HYBRID }),
     qwen("qwen-3.5", "qwen3.5-4b", "Qwen3.5-4B", { capabilities: QWEN_HYBRID }),
     qwen("qwen-3.5", "qwen3.5-9b", "Qwen3.5-9B", { capabilities: QWEN_HYBRID }),
-    qwen("qwen-3.5", "qwen3.5-27b", "Qwen3.5-27B", {
-      capabilities: QWEN_HYBRID,
-      source: "local:27B",
-    }),
+    qwen("qwen-3.5", "qwen3.5-27b", "Qwen3.5-27B", { capabilities: QWEN_HYBRID }),
     qwen("qwen-3.5", "qwen3.5-35b-a3b", "Qwen3.5-35B-A3B", { capabilities: QWEN_HYBRID }),
     qwen("qwen-3.5", "qwen3.5-122b-a10b", "Qwen3.5-122B-A10B", { capabilities: QWEN_HYBRID }),
     qwen("qwen-3.5", "qwen3.5-397b-a17b", "Qwen3.5-397B-A17B", { capabilities: QWEN_HYBRID }),
@@ -152,20 +149,7 @@
       capabilities: GLM_DSA,
     }),
     defineModel("glm-5", "glm-5.3", "GLM-5.3", "ZhipuAI/GLM-5.3", {
-      capabilities: withCapabilities(GLM_DSA, { quantization: "fp8-mixed" }),
-    }),
-    defineModel("glm-5", "glm-5.3-bf16", "GLM-5.3-BF16", "ZhipuAI/GLM-5.3-BF16", {
-      capabilities: withCapabilities(GLM_DSA, { quantization: "bf16" }),
-    }),
-    defineModel("glm-5", "glm-5.2-8l", "GLM-5.2 (8L)", "ZhipuAI/GLM-5.2", {
       capabilities: GLM_DSA,
-      source: "glm-scale:8",
-      supportNote: "合成减层配置：按 GLM-5.2 结构规则缩放，无 checkpoint 真值，用于小卡数验证",
-    }),
-    defineModel("glm-5", "glm-5.2-16l", "GLM-5.2 (16L)", "ZhipuAI/GLM-5.2", {
-      capabilities: GLM_DSA,
-      source: "glm-scale:16",
-      supportNote: "合成减层配置：按 GLM-5.2 结构规则缩放，无 checkpoint 真值，用于小卡数验证",
     }),
     defineModel("glm-5", "glm-5.3-flash", "GLM-5.3-Flash", "ZhipuAI/GLM-5.3-Flash", {
       supported: false,
@@ -194,6 +178,17 @@
     MODEL_BY_LABEL[model.label] = model;
   }
 
+  // Keep old deep links working without exposing checkpoint formats or
+  // synthetic layer counts as separate architectures in the model picker.
+  const LEGACY_MODEL_ALIASES = Object.freeze({
+    "glm-5.3-bf16": "glm-5.3",
+    "GLM-5.3-BF16": "glm-5.3",
+    "glm-5.2-8l": "glm-5.2",
+    "GLM-5.2 (8L)": "glm-5.2",
+    "glm-5.2-16l": "glm-5.2",
+    "GLM-5.2 (16L)": "glm-5.2",
+  });
+
   function listSeries() {
     return SERIES_DEFINITIONS.slice();
   }
@@ -205,7 +200,10 @@
   }
 
   function findModel(modelIdOrLabel) {
-    return MODEL_BY_ID[modelIdOrLabel] || MODEL_BY_LABEL[modelIdOrLabel] || null;
+    const direct = MODEL_BY_ID[modelIdOrLabel] || MODEL_BY_LABEL[modelIdOrLabel];
+    if (direct) return direct;
+    const canonicalId = LEGACY_MODEL_ALIASES[modelIdOrLabel];
+    return canonicalId ? MODEL_BY_ID[canonicalId] : null;
   }
 
   function findSeriesForModel(modelIdOrLabel) {
@@ -218,6 +216,7 @@
     listModels,
     findModel,
     findSeriesForModel,
+    legacyModelAliases: LEGACY_MODEL_ALIASES,
     defaultModelId: DEFAULT_MODEL_ID,
   });
 });

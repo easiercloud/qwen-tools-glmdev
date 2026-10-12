@@ -3,10 +3,10 @@ const assert = require("node:assert/strict");
 
 const glm = require("../memory/glm-modeling.js");
 
-function load(modelId) {
+function load(modelId, artifactId) {
   const config = glm.makePresetConfig(modelId);
   assert.ok(config, "missing preset " + modelId);
-  return glm.parseConfig(config, { modelId });
+  return glm.parseConfig(config, { modelId, artifactId });
 }
 
 test("GLM-5.2 config maps MLA, mixed MLP, DSA sharing, and MTP", () => {
@@ -39,10 +39,10 @@ test("GLM-5.2 component ledger reproduces checkpoint bytes exactly", () => {
   assert.equal(summary.sparseTotal, 76);
 });
 
-test("GLM-5.3 and GLM-5.3-BF16 share the 5.2 architecture", () => {
+test("GLM-5.3 BF16 and FP8 artifacts share the 5.2 architecture", () => {
   const p52 = glm.summarizeComponents(load("glm-5.2"));
   const p53 = glm.summarizeComponents(load("glm-5.3"));
-  const p53bf16 = glm.summarizeComponents(load("glm-5.3-bf16"));
+  const p53bf16 = glm.summarizeComponents(load("glm-5.3", "bf16"));
   assert.equal(p53.N, p52.N);
   assert.equal(p53bf16.N, p52.N);
   assert.equal(p53.checkpointTruthBytes, 755617140416);
@@ -111,14 +111,16 @@ test("layer overrides drop checkpoint truth and mark the config synthetic", () =
   assert.ok(summary.N < 753329940480);
 });
 
-test("scaled preset ids build synthetic configs without checkpoint truth", () => {
-  const cfg8 = glm.makePresetConfig("glm-5.2-8l");
+test("small-layer validation stays a layer override instead of a model preset", () => {
+  assert.equal(glm.makePresetConfig("glm-5.2-8l"), null);
+  assert.equal(glm.makePresetConfig("glm-5.2-16l"), null);
+  const cfg8 = glm.makePresetConfig("glm-5.2", 8);
   assert.equal(cfg8.num_hidden_layers, 8);
-  const model8 = glm.parseConfig(cfg8, { modelId: "glm-5.2-8l" });
+  const model8 = glm.parseConfig(cfg8, { modelId: "glm-5.2", layerOverride: 8 });
   assert.equal(model8.layers, 8);
   assert.equal(model8.checkpointTruthBytes, null);
   assert.match(model8.sourceRevision, /scaled/);
-  const model16 = glm.parseConfig(glm.makePresetConfig("glm-5.2-16l"), { modelId: "glm-5.2-16l" });
+  const model16 = glm.parseConfig(glm.makePresetConfig("glm-5.2", 16), { modelId: "glm-5.2", layerOverride: 16 });
   assert.equal(model16.layers, 16);
   assert.equal(model16.checkpointTruthBytes, null);
   assert.equal(glm.makePresetConfig("glm-5.2-99l"), null);

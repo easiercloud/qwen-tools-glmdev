@@ -83,22 +83,22 @@ test("contains every Qwen option currently exposed by the HTML pages", () => {
   assert.deepEqual(actual, CURRENT_QWEN_LABELS.slice().sort());
 });
 
-test("maps repositories and preserves the three local Qwen preset sources", () => {
+test("maps repositories and preserves the two page-local Qwen preset sources", () => {
   const localPresets = catalog.listModels()
     .filter((model) => model.source.startsWith("local:"))
     .map((model) => [model.modelId, model.repo, model.source])
     .sort();
 
   assert.deepEqual(localPresets, [
-    ["qwen3.5-27b", "Qwen/Qwen3.5-27B", "local:27B"],
     ["qwen3.5-35b-a3b-12l", "Qwen/Qwen3.5-35B-A3B", "local:12L"],
     ["qwen3.6-35b-a3b-20l", "Qwen/Qwen3.6-35B-A3B", "local:20L"],
   ]);
 
+  assert.equal(catalog.findModel("qwen3.5-27b").source, "remote");
   assert.equal(catalog.findModel("qwen3-8b").repo, "Qwen/Qwen3-8B");
   assert.equal(catalog.findModel("glm-5.2").repo, "ZhipuAI/GLM-5.2");
   assert.equal(catalog.findModel("glm-5.3").repo, "ZhipuAI/GLM-5.3");
-  assert.equal(catalog.findModel("glm-5.3-bf16").repo, "ZhipuAI/GLM-5.3-BF16");
+  assert.equal(catalog.findModel("glm-5.3-bf16").repo, "ZhipuAI/GLM-5.3");
   assert.equal(catalog.findModel("glm-5.3-flash").repo, "ZhipuAI/GLM-5.3-Flash");
 });
 
@@ -107,9 +107,6 @@ test("filters models by series and resolves ids and legacy labels", () => {
   assert.deepEqual(glmModels.map((model) => model.modelId), [
     "glm-5.2",
     "glm-5.3",
-    "glm-5.3-bf16",
-    "glm-5.2-8l",
-    "glm-5.2-16l",
     "glm-5.3-flash",
   ]);
   assert.ok(glmModels.every((model) => model.seriesId === "glm-5"));
@@ -133,7 +130,7 @@ test("declares valid global and per-series defaults", () => {
 });
 
 test("marks GLM-5.3-Flash as an unsupported independent architecture", () => {
-  for (const modelId of ["glm-5.2", "glm-5.3", "glm-5.3-bf16"]) {
+  for (const modelId of ["glm-5.2", "glm-5.3"]) {
     assert.equal(catalog.findModel(modelId).supported, true);
   }
 
@@ -144,20 +141,13 @@ test("marks GLM-5.3-Flash as an unsupported independent architecture", () => {
   assert.match(flash.supportNote, /独立.*架构/);
 });
 
-test("exposes scaled GLM-5.2 presets for small-cluster verification", () => {
-  const expected = [
-    ["glm-5.2-8l", "glm-scale:8", "GLM-5.2 (8L)"],
-    ["glm-5.2-16l", "glm-scale:16", "GLM-5.2 (16L)"],
-  ];
-  for (const [modelId, source, label] of expected) {
-    const entry = catalog.findModel(modelId);
-    assert.equal(entry.supported, true);
-    assert.equal(entry.source, source);
-    assert.equal(entry.label, label);
-    assert.equal(entry.seriesId, "glm-5");
-    assert.equal(entry.repo, "ZhipuAI/GLM-5.2");
-    assert.equal(entry.capabilities.vendor, "zhipuai");
-    assert.equal(entry.capabilities.architecture, "glm-moe-dsa");
-    assert.match(entry.supportNote, /合成/);
-  }
+test("keeps legacy GLM artifact/layer deep links without listing them as architectures", () => {
+  assert.equal(catalog.findModel("glm-5.3-bf16").modelId, "glm-5.3");
+  assert.equal(catalog.findModel("GLM-5.3-BF16").modelId, "glm-5.3");
+  assert.equal(catalog.findModel("glm-5.2-8l").modelId, "glm-5.2");
+  assert.equal(catalog.findModel("GLM-5.2 (16L)").modelId, "glm-5.2");
+  const ids = catalog.listModels("glm-5").map((entry) => entry.modelId);
+  assert.ok(!ids.includes("glm-5.3-bf16"));
+  assert.ok(!ids.includes("glm-5.2-8l"));
+  assert.ok(!ids.includes("glm-5.2-16l"));
 });

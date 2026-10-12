@@ -220,16 +220,15 @@
     <div class="header-inner">
       <div class="header-row">
         <div>
-          <a class="home" href="../">← 模型训练工具台</a>
+          <a class="home" href="../">← QWEN 小工具</a>
           <h1>Megatron 显存建模</h1>
-          <p>Qwen 与 GLM-5.2/5.3 训练静态显存；GLM 参数账本按官方 checkpoint 校验，未 profile 的整卡峰值明确标为下界。</p>
         </div>
         <div class="top-actions">
-          <a class="top-link" href="https://github.com/zyang6/qwen-tools" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库">
+          <a class="top-link" href="https://github.com/easiercloud/qwen-tools-glmdev" target="_blank" rel="noopener noreferrer" aria-label="GitHub 仓库">
             <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
             GitHub
           </a>
-          <a class="top-link" href="https://github.com/zyang6/qwen-tools/issues/new?title=%5Bmemory%2Fmegatron%5D%20%E5%8F%8D%E9%A6%88" target="_blank" rel="noopener noreferrer" aria-label="反馈问题">
+          <a class="top-link" href="https://github.com/easiercloud/qwen-tools-glmdev/issues/new?title=%5Bmemory%2Fmegatron%5D%20%E5%8F%8D%E9%A6%88" target="_blank" rel="noopener noreferrer" aria-label="反馈问题">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="13"></line><line x1="12" y1="16.5" x2="12.01" y2="16.5"></line></svg>
             反馈
           </a>
@@ -242,11 +241,14 @@
     <aside class="side">
       <section class="card">
         <p class="kicker">Configuration</p>
-        <label class="f">模型系列
-          <select id="ovSeries"></select>
-        </label>
-        <label class="f" style="margin-top:12px;">模型
+        <label class="f">模型
           <select id="ovModel"></select>
+        </label>
+        <label class="f" id="artifactField" style="margin-top:12px;">Checkpoint / artifact
+          <select id="ovArtifact"></select>
+        </label>
+        <label class="f" id="artifactAliasField" style="margin-top:12px;">原始 artifact 名称（可选）
+          <input id="ovArtifactAlias" type="text" placeholder="例如 GLM-5.2-W4A8C8-A5-0731" />
         </label>
         <div class="chips" id="chips"></div>
         <div class="err" id="err"></div>
@@ -258,18 +260,33 @@
         </details>
       </section>
 
+      <section class="card" id="trainingModeCard">
+        <h3 class="sec">训练方式</h3>
+        <div class="fields one">
+          <label class="f">模式
+            <select id="ovTrainMode"></select>
+          </label>
+        </div>
+        <div class="fields" style="margin-top:12px;">
+          <label class="f">Adapter 参数比例 %<input id="ovTrainablePct" type="number" min="0" max="100" step="0.01" /></label>
+          <label class="f">Adapter 参数量（可选）<input id="ovTrainableParams" type="number" min="0" step="1" placeholder="留空则按比例" /></label>
+        </div>
+        <div class="checks">
+          <label class="chk"><input id="ovMtpEnabled" type="checkbox" /> 训练 MTP 辅助目标</label>
+        </div>
+      </section>
+
       <section class="card">
         <h3 class="sec">切分配置</h3>
         <div class="fields">
           <label class="f">TP<input id="ovTP" type="number" min="0" step="1" /></label>
           <label class="f">PP<input id="ovPP" type="number" min="0" step="1" /></label>
-          <label class="f">CP<input id="ovCP" type="number" min="0" step="1" /></label>
           <label class="f" id="epField">EP<input id="ovEP" type="number" min="0" step="1" /></label>
           <label class="f" id="etpField">ETP<input id="ovETP" type="number" min="0" step="1" /></label>
           <label class="f">单卡容量 GiB<input id="ovHbm" type="number" min="0" step="1" /></label>
           <label class="f">HCCL_BUFFSIZE MB<input id="ovHccl" type="number" min="0" step="1" /></label>
-          <label class="f">MTP 层数<input id="ovMtp" type="number" min="0" step="1" /></label>
-          <label class="f">层数（减层覆盖）<input id="ovLayers" type="number" min="1" step="1" /></label>
+          <label class="f" id="mtpStructureField">MTP 层数<input id="ovMtp" type="number" min="0" step="1" /></label>
+          <label class="f" id="layerOverrideField">层数（减层覆盖）<input id="ovLayers" type="number" min="1" step="1" /></label>
         </div>
       </section>
 
@@ -279,13 +296,13 @@
           <label class="f">mbs / 卡<input id="ovMbs" type="number" min="0" step="1" /></label>
           <label class="f">prompt<input id="ovPrompt" type="number" min="0" step="1" /></label>
           <label class="f">response<input id="ovResp" type="number" min="0" step="1" /></label>
-          <label class="f">CE 分块数<input id="ovCeChunks" type="number" min="1" step="1" /></label>
+          <label class="f" id="ceChunksField">CE 分块数<input id="ovCeChunks" type="number" min="1" step="1" /></label>
         </div>
       </section>
 
       <section class="card">
         <h3 class="sec">显存优化</h3>
-        <div class="fields one">
+        <div class="fields one" id="optimizerField">
           <label class="f">优化器
             <select id="ovOptimizer">
               <option value="adam">Adam（actor update）</option>
@@ -294,7 +311,7 @@
           </label>
         </div>
         <div class="checks">
-          <label class="chk"><input id="ovAdamOff" type="checkbox" /> 优化器状态在 CPU</label>
+          <label class="chk"><input id="ovAdamOff" type="checkbox" /> <span id="optimizerOffloadText">Adam 在 CPU</span></label>
           <label class="chk"><input id="ovRecompute" type="checkbox" /> full recompute</label>
           <label class="chk"><input id="ovEntropy" type="checkbox" /> 算 entropy</label>
         </div>
@@ -325,6 +342,7 @@
   </div>
 
 <script src="model-catalog.js"></script>
+<script src="training-policies.js"></script>
 <script src="glm-modeling.js"></script>
 <script>
 const GIB = 1024 ** 3;
@@ -378,15 +396,19 @@ function defaultTrain(model) {
   const nKV = (model && model.nKV) || 0;
   const denseTP = nKV > 0 ? Math.min(4, nKV) : 4;
   return {
-    TP: glm ? 4 : (moe ? 2 : denseTP), PP: glm ? 8 : 1, CP: glm ? 8 : 1,
+    TP: glm ? 4 : (moe ? 2 : denseTP), PP: glm ? 8 : 1,
     EP: glm ? 32 : (moe ? 8 : 1), ETP: 1,
     mbs: 1, prompt: glm ? 4096 : 1024, resp: glm ? 4096 : 2048,
     adamOff: true,
     optimizer: glm ? "muon" : "adam",
+    trainingMode: "pretrain",
+    trainableRatio: MemoryTrainingPolicies.DEFAULT_TRAINABLE_RATIO,
+    trainableParams: null,
+    mtpEnabled: glm ? ((model && model.mtp) || 0) > 0 : true,
     ceChunks: glm ? 4 : 1,
     recompute: true, recLayers: 1,
     entropy: false,
-    bw: 2, hbm: glm ? 80 : 64, hcclMB: 200, mtp: (model && model.mtp) || 0,
+    bw: 2, hbm: glm ? 80 : 64, hcclMB: 200, mtp: glm ? ((model && model.mtp) || 0) : 0,
     fragG: 1, ptaG: 1, osG: 3.5,
   };
 }
@@ -397,20 +419,27 @@ function catalogModel(modelId) {
   return MemoryModelCatalog.findModel(modelId);
 }
 
-function localModelForEntry(entry) {
+function localModelForEntry(entry, artifactId, rawAlias) {
   if (!entry) return null;
   if (entry.capabilities.vendor === "zhipuai") {
     const cfg = GlmMemoryModel.makePresetConfig(entry.modelId);
-    return cfg ? GlmMemoryModel.parseConfig(cfg, { modelId: entry.modelId }) : null;
+    return cfg ? GlmMemoryModel.parseConfig(cfg, {
+      modelId: entry.modelId,
+      artifactId: artifactId || MemoryTrainingPolicies.defaultArtifactId(entry.modelId),
+      rawAlias,
+    }) : null;
   }
   if (entry.source === "local:12L") return { ...DEFAULT_12L, layerTypes: defaultLayerTypes(12, 4) };
   if (entry.source === "local:20L") return { ...DEFAULT_20L, layerTypes: defaultLayerTypes(20, 4) };
-  if (entry.source === "local:27B") return { ...DEFAULT_27B, layerTypes: defaultLayerTypes(64, 4) };
+  // Megatron had a page-local 27B preset on origin/main; FSDP intentionally
+  // keeps its original remote config loading path.
+  if (entry.modelId === "qwen3.5-27b") return { ...DEFAULT_27B, layerTypes: defaultLayerTypes(64, 4) };
   return null;
 }
 
-const INITIAL_ENTRY = catalogModel("glm-5.2");
-const INITIAL_MODEL = localModelForEntry(INITIAL_ENTRY);
+const INITIAL_ENTRY = catalogModel(MemoryModelCatalog.defaultModelId) || catalogModel("qwen3.5-27b");
+const INITIAL_ARTIFACT_ID = MemoryTrainingPolicies.defaultArtifactId(INITIAL_ENTRY.modelId);
+const INITIAL_MODEL = localModelForEntry(INITIAL_ENTRY, INITIAL_ARTIFACT_ID);
 
 const S = {
   seriesId: INITIAL_ENTRY.seriesId,
@@ -418,6 +447,9 @@ const S = {
   modelLabel: INITIAL_ENTRY.label,
   loadedModelId: INITIAL_ENTRY.modelId,
   weightRepo: INITIAL_ENTRY.repo,
+  artifactId: INITIAL_ARTIFACT_ID,
+  artifactAlias: "",
+  entropyBeforeRl: null,
   model: INITIAL_MODEL,
   train: defaultTrain(INITIAL_MODEL),
   loadState: "ready",
@@ -642,18 +674,25 @@ function compute(model, train) {
   checkDiv("ETP", ETP);
   const splitOk = posOk(TP) && posOk(PP) && posOk(EP) && posOk(ETP);
   const bw = train.bw || 2;
-  let nRankDense, nRankExp, perRank, Wd, We, W, G, Gd, Ge, adam, AdamGpu;
+  let nRankDense, nRankExp, perRank, Wd, We, W, G, Gd, Ge, adam, AdamGpu, policy;
   let nRankTpShard = null, nRankReplicated = null;
+  let rankBase = null, rankBaseTrainable = null, rankAdapter = null, rankFrozen = null;
   let rankTrainable = null, rankBuffer = null, rankMuon = null, rankAdamw = null;
   if (p.isGlm && splitOk) {
     const stat = GlmMemoryModel.aggregateStatic(model, {
-      ...train, TP, PP, EP, ETP, optimizerOffload: !!train.adamOff,
+      ...train, TP, PP, EP, ETP,
+      artifactId: train.artifactId,
+      optimizerOffload: !!train.adamOff,
     }, p.components);
     nRankTpShard = stat.nRankTpShard;
     nRankReplicated = stat.nRankReplicated;
     nRankDense = stat.nRankTpShard + stat.nRankReplicated;
     nRankExp = stat.nRankExpert;
     perRank = stat.perRank;
+    rankBase = stat.rankBase;
+    rankBaseTrainable = stat.rankBaseTrainable;
+    rankAdapter = stat.rankAdapter;
+    rankFrozen = stat.rankFrozen;
     rankTrainable = stat.rankTrainable;
     rankBuffer = stat.rankBuffer;
     rankMuon = stat.rankMuon;
@@ -666,18 +705,75 @@ function compute(model, train) {
     Ge = null;
     adam = stat.optimizer;
     AdamGpu = stat.optimizer;
+    policy = stat.policy;
+  } else if (splitOk) {
+    const artifact = MemoryTrainingPolicies.resolveArtifact({
+      modelId: model.modelId || S.modelName,
+      artifactId: train.artifactId || S.artifactId,
+      rawAlias: train.artifactAlias || S.artifactAlias,
+    });
+    const generic = MemoryTrainingPolicies.aggregateComponentMemory({
+      components: [
+        {
+          key: "dense",
+          numel: p.nDense,
+          trainable: true,
+          parallel: "tp",
+          optimizer: "adamw",
+          dtypeBytes: bw,
+          mtpNumel: p.mtpN || 0,
+        },
+        {
+          key: "experts",
+          numel: p.nExpert,
+          trainable: true,
+          parallel: "expert",
+          optimizer: "adamw",
+          dtypeBytes: bw,
+        },
+      ],
+      rankScale(component) {
+        return component.parallel === "expert"
+          ? 1 / (EP * ETP * PP)
+          : 1 / (TP * PP);
+      },
+      mode: train.trainingMode || "pretrain",
+      artifact,
+      trainableRatio: train.trainableRatio,
+      trainableParams: train.trainableParams,
+      trainWeightBytes: bw,
+      gradBytes: train.gradBytes || bw,
+      mtpEnabled: train.mtpEnabled !== false,
+      optimizerType: train.optimizer,
+      optimizerOffload: !!train.adamOff,
+    });
+    policy = generic.policy;
+    nRankDense = p.nDense / (TP * PP);
+    nRankExp = p.nExpert / (EP * ETP * PP);
+    perRank = generic.perRank;
+    nRankTpShard = generic.nRankTpShard;
+    nRankReplicated = generic.nRankReplicated;
+    rankBase = generic.rankBase;
+    rankBaseTrainable = generic.rankBaseTrainable;
+    rankAdapter = generic.rankAdapter;
+    rankFrozen = generic.rankFrozen;
+    rankTrainable = generic.rankTrainable;
+    rankBuffer = generic.rankBuffer;
+    rankMuon = generic.rankMuon;
+    rankAdamw = generic.rankAdamw;
+    Wd = null;
+    We = null;
+    Gd = null;
+    Ge = null;
+    W = generic.weightBytes / GIB;
+    G = generic.gradBytes / GIB;
+    adam = generic.optimizerBytes / GIB;
+    AdamGpu = adam;
   } else {
-    nRankDense = splitOk ? p.nDense / (TP * PP) : null;
-    nRankExp = splitOk ? p.nExpert / (EP * ETP * PP) : null;
-    perRank = sumNum(nRankDense, nRankExp);
-    Wd = isNum(nRankDense) ? nRankDense * bw / GIB : null;
-    We = isNum(nRankExp) ? nRankExp * bw / GIB : null;
-    W = sumNum(Wd, We);
-    G = W;
-    Gd = Wd;
-    Ge = We;
-    adam = isNum(perRank) ? perRank * 12 / GIB : null;
-    AdamGpu = train.adamOff ? 0 : adam;
+    nRankDense = null;
+    nRankExp = null;
+    perRank = null;
+    Wd = We = W = G = Gd = Ge = adam = AdamGpu = null;
   }
   const staticWG = sumNum(W, G);
   const staticFull = sumNum(staticWG, AdamGpu);
@@ -716,16 +812,21 @@ function compute(model, train) {
   const actG = actExtra;
   const nKV = model.nKV || 0;
   const tpLimit = p.isGlm ? model.nQ : nKV;
-  const tpIllegal = posOk(TP) && isNum(tpLimit) && tpLimit > 0 && (TP > tpLimit || tpLimit % TP !== 0);
+  const tpIllegal = posOk(TP) && isNum(tpLimit) && tpLimit > 0 && (p.isGlm
+    ? (TP > tpLimit || tpLimit % TP !== 0)
+    : TP > tpLimit);
   const epIllegal = p.isGlm && posOk(EP) && model.experts % EP !== 0;
-  const peakOk = recOk && !tpIllegal && !epIllegal && PP === 1 && !p.isGlm;
-  if (tpIllegal) warns.push("TP=" + TP + " 必须整除 attention heads=" + tpLimit);
+  const peakOk = !p.isGlm && recOk && !tpIllegal;
+  if (tpIllegal) warns.push(p.isGlm
+    ? "TP=" + TP + " 必须整除 attention heads=" + tpLimit
+    : "TP=" + TP + " > n_kv_heads=" + nKV);
   if (epIllegal) warns.push("EP=" + EP + " 必须整除 experts=" + model.experts);
   else if (!train.recompute) warns.push("已关 recompute：高峰另加约 L×T×H×2");
-  if (isNum(PP) && PP > 1) warns.push("PP>1：当前显示按 stage 均摊的下界，尚未建模最重 stage");
-  if (p.isGlm && model.checkpointPrecision === "FP8 mixed") {
-    warns.push("所选 checkpoint 为 FP8 混合精度；训练权重/梯度仍按 BF16 口径");
+  if (p.isGlm && isNum(PP) && PP > 1) warns.push("PP>1：当前显示按 stage 均摊的下界，尚未建模最重 stage");
+  if (policy && policy.fullUpdate && policy.artifact.quantized) {
+    warns.push("所选量化 artifact 仅影响加载来源；全参更新已按训练 dtype 展开");
   }
+  if (policy) warns.push(...policy.warnings);
   if (p.isGlm && train.optimizer === "muon" && !train.adamOff) {
     warns.push("Muon 状态按 fp32 momentum 4 B/二维参数估算，需按实际训练实现校准");
   }
@@ -750,7 +851,8 @@ function compute(model, train) {
   return {
     ...p, TP, PP, EP, ETP, seq, T, Vloc, perRank, nRankDense, nRankExp,
     nRankTpShard, nRankReplicated,
-    rankTrainable, rankBuffer, rankMuon, rankAdamw,
+    rankBase, rankBaseTrainable, rankAdapter, rankFrozen,
+    rankTrainable, rankBuffer, rankMuon, rankAdamw, policy,
     nKV, tpIllegal, epIllegal, peakOk, recOk,
     W, G, Wd, We, Gd, Ge, adam, AdamGpu, staticWG, staticFull,
     vocabWs, dsaIndices, routerLogits, outputWs, attentionWs, entropyClone, actExtra, dynG, actG, ws, peak, warns, bw, ceChunks,
@@ -772,11 +874,20 @@ function readForm() {
   t.resp = readNum("ovResp");
   t.ceChunks = readNum("ovCeChunks");
   t.optimizer = $("ovOptimizer").value;
+  t.trainingMode = $("ovTrainMode").value || "pretrain";
+  const trainablePct = readNum("ovTrainablePct");
+  t.trainableRatio = isNum(trainablePct) ? Math.max(trainablePct, 0) / 100 : 0;
+  t.trainableParams = readNum("ovTrainableParams");
+  t.mtpEnabled = S.model.family === "glm" ? $("ovMtpEnabled").checked : true;
+  t.artifactId = S.artifactId;
+  t.artifactAlias = S.artifactAlias;
   t.adamOff = $("ovAdamOff").checked;
   t.recompute = $("ovRecompute").checked;
   t.entropy = $("ovEntropy").checked;
   t.mtp = readNum("ovMtp");
-  S.model.mtp = isNum(t.mtp) ? Math.max(t.mtp, 0) : 0;
+  if (S.model.family !== "glm") {
+    S.model.mtp = isNum(t.mtp) ? Math.max(t.mtp, 0) : 0;
+  }
   if (!isMoeModel(S.model)) {
     t.EP = 1;
     t.ETP = 1;
@@ -786,6 +897,8 @@ function readForm() {
 function syncSplitUi() {
   const moe = isMoeModel(S.model);
   const glm = S.model && S.model.family === "glm";
+  ["artifactField", "artifactAliasField", "trainingModeCard", "customCfgBox", "layerOverrideField", "ceChunksField", "optimizerField"]
+    .forEach((id) => { $(id).style.display = glm ? "" : "none"; });
   const ep = $("epField");
   const etp = $("etpField");
   if (ep) {
@@ -809,16 +922,29 @@ function syncSplitUi() {
     ? "覆盖 decoder 层数：dense/indexer 分布按官方规则重新推导，结果不再与 checkpoint 对账"
     : "仅 GLM MoE-DSA 支持层数覆盖";
   $("ovOptimizer").disabled = !glm;
+  $("optimizerOffloadText").textContent = glm ? "优化器状态在 CPU" : "Adam 在 CPU";
   if (!glm) {
-    S.train.optimizer = "adamw";
-    $("ovOptimizer").value = "adamw";
+    S.train.trainingMode = "pretrain";
+    S.train.mtpEnabled = true;
+    S.train.optimizer = "adam";
+    $("ovOptimizer").value = "adam";
   }
+  const mode = MemoryTrainingPolicies.findTrainingMode(S.train.trainingMode || "pretrain");
+  const adapters = !!(mode && mode.adapterBased);
+  $("ovTrainablePct").disabled = !adapters;
+  $("ovTrainableParams").disabled = !adapters;
+  const hasMtp = !!(S.model && S.model.mtp > 0);
+  $("ovMtpEnabled").disabled = !hasMtp;
+  $("ovMtpEnabled").title = hasMtp
+    ? "只控制 MTP 辅助目标及对应参数更新；不改变 checkpoint 是否包含 MTP 参数"
+    : "当前架构没有 MTP 参数";
 }
 
 function writeForm() {
   const t = S.train;
-  $("ovSeries").value = S.seriesId;
   $("ovModel").value = S.modelName;
+  $("ovArtifact").value = S.artifactId;
+  $("ovArtifactAlias").value = S.artifactAlias || "";
   writeNum("ovTP", t.TP);
   writeNum("ovPP", t.PP);
   writeNum("ovEP", t.EP);
@@ -831,7 +957,11 @@ function writeForm() {
   writeNum("ovCeChunks", t.ceChunks == null ? 1 : t.ceChunks);
   writeNum("ovMtp", S.model.mtp);
   writeNum("ovLayers", S.model && S.model.family === "glm" ? S.model.layers : null);
-  $("ovOptimizer").value = t.optimizer || "adamw";
+  $("ovTrainMode").value = t.trainingMode || "pretrain";
+  writeNum("ovTrainablePct", (t.trainableRatio == null ? MemoryTrainingPolicies.DEFAULT_TRAINABLE_RATIO : t.trainableRatio) * 100);
+  writeNum("ovTrainableParams", t.trainableParams);
+  $("ovMtpEnabled").checked = t.mtpEnabled !== false && S.model.mtp > 0;
+  $("ovOptimizer").value = t.optimizer || "adam";
   $("ovAdamOff").checked = !!t.adamOff;
   $("ovRecompute").checked = !!t.recompute;
   $("ovEntropy").checked = !!t.entropy;
@@ -853,11 +983,13 @@ function partsOf(r) {
 }
 
 function render() {
-  if (S.loadState !== "ready" || S.loadedModelId !== S.modelName) {
+  if (S.loadState !== "ready" || (S.model && S.model.family === "glm" && S.loadedModelId !== S.modelName)) {
     clearResult();
     return;
   }
   syncSplitUi();
+  S.train.artifactId = S.artifactId;
+  S.train.artifactAlias = S.artifactAlias;
   const r = compute(S.model, S.train);
   const parts = partsOf(r);
   const tot = r.deviceG;
@@ -866,7 +998,7 @@ function render() {
   if (r.tpIllegal || r.epIllegal) {
     $("vTotal").innerHTML = "非法";
     $("vTotalSub").textContent = r.tpIllegal
-      ? "TP 必须整除 attention heads"
+      ? (r.isGlm ? "TP 必须整除 attention heads" : "TP 不能大于 n_kv_heads")
       : "EP 必须整除 experts";
   } else {
     $("vTotal").innerHTML = isNum(tot) ? fmtG(tot) + "<span>GiB</span>" : "null";
@@ -891,14 +1023,26 @@ function render() {
   const chips = [
     `<span class="chip ${isMoe ? "warn" : "ok"}">${isMoe ? "MOE" : "DENSE"}</span>`,
   ];
+  if (r.policy && r.isGlm) {
+    chips.push(`<span class="chip">${r.policy.label}</span>`);
+    chips.push(`<span class="chip">${r.policy.artifact.label} artifact</span>`);
+    if (r.policy.adapterBased) {
+      chips.push(`<span class="chip ok">Adapter ${fmtN(r.rankAdapter)} params/rank</span>`);
+    }
+    if (r.policy.artifact.hardware) chips.push(`<span class="chip">硬件 ${r.policy.artifact.hardware}</span>`);
+    if (r.policy.artifact.revision) chips.push(`<span class="chip">版本 ${r.policy.artifact.revision}</span>`);
+  }
   if (r.isGlm) {
     chips.push(`<span class="chip">GLM</span>`);
     chips.push(`<span class="chip">MLA + DSA</span>`);
-    chips.push(`<span class="chip">${S.model.checkpointPrecision} checkpoint</span>`);
     if (S.model.checkpointTruthBytes == null) {
-      chips.push(`<span class="chip warn">合成配置 · 无 checkpoint 真值</span>`);
+      chips.push(`<span class="chip warn">无精确 checkpoint 真值</span>`);
     }
-    if (S.model.mtp > 0) chips.push(`<span class="chip">MTP × ${S.model.mtp}</span>`);
+    if (S.model.synthetic) chips.push(`<span class="chip warn">合成减层配置</span>`);
+    if (S.model.mtp > 0) {
+      chips.push(`<span class="chip">MTP 参数 × ${S.model.mtp}</span>`);
+      chips.push(`<span class="chip ${S.train.mtpEnabled ? "ok" : "warn"}">MTP 训练 ${S.train.mtpEnabled ? "ON" : "OFF"}</span>`);
+    }
   }
   const selectedEntry = catalogModel(S.modelName);
   if ((S.model.vitDepth || 0) > 0 || (selectedEntry && selectedEntry.capabilities.vision)) {
@@ -917,21 +1061,26 @@ function render() {
   const branch = (title, fml, val, inner) =>
     `<details><summary><div class="sum"><div class="nm">${title}${fml ? `<div class="fml">${fml}</div>` : ""}</div><div class="sv">${val}</div></div></summary><div class="kids">${inner}</div></details>`;
 
+  const adapterMode = !!(r.policy && r.policy.adapterBased);
   const wEq = !isNum(r.W)
     ? `N_rank × 2 = ${r.perRank == null ? "null" : fmtN(r.perRank)} × 2 = null`
-    : (r.isGlm
+    : (adapterMode
+      ? `冻结基座 × ${r.policy.artifact.storageBytesPerParam} B + adapter × ${r.policy.trainWeightBytes} B = ${fmtG(r.W)} GiB`
+      : (r.isGlm
       ? `N_trainable × 2 + N_buffer × 4 = ${fmtG(r.W)} GiB`
-      : `N_rank × 2 = ${fmtN(r.perRank)} × 2 / 1024³ = ${fmtG(r.W)} GiB`);
+      : `N_rank × 2 = ${fmtN(r.perRank)} × 2 / 1024³ = ${fmtG(r.W)} GiB`));
   const gEq = !isNum(r.G)
     ? `N_rank × 2 = null`
-    : (r.isGlm
+    : (adapterMode
+      ? `N_adapter × ${r.policy.gradBytes} = ${fmtN(r.rankAdapter)} × ${r.policy.gradBytes} / 1024³ = ${fmtG(r.G)} GiB`
+      : (r.isGlm
       ? `N_trainable × 2 = ${fmtN(r.rankTrainable)} × 2 / 1024³ = ${fmtG(r.G)} GiB`
-      : `N_rank × 2 = ${fmtN(r.perRank)} × 2 / 1024³ = ${fmtG(r.G)} GiB`);
+      : `N_rank × 2 = ${fmtN(r.perRank)} × 2 / 1024³ = ${fmtG(r.G)} GiB`));
   const oEq = S.train.adamOff
     ? `优化器状态在 CPU = 0 GiB`
     : (!isNum(r.AdamGpu)
       ? `优化器状态 = null`
-      : (r.isGlm && S.train.optimizer === "muon"
+      : (!adapterMode && r.isGlm && S.train.optimizer === "muon"
         ? `N_muon × 4 + N_adamw × 12 = ${fmtG(r.AdamGpu)} GiB`
         : `N_trainable × 12 / 1024³ = ${fmtG(r.AdamGpu)} GiB`));
   const dynEq = !isNum(r.vocabWs)
@@ -1039,22 +1188,24 @@ function render() {
     const checkpointGiB = r.checkpointTruthBytes == null ? null : r.checkpointTruthBytes / GIB;
     nTree =
       `<div class="tree">` +
-      branch("N_rank = N_tp/(TP×PP) + N_copy/PP + N_expert/(EP×ETP×PP)",
-        `${fmtN(r.nRankTpShard)} + ${fmtN(r.nRankReplicated)} + ${fmtN(r.nRankExp)}`,
+      branch("N_rank = 基座切分" + (adapterMode ? " + adapter" : ""),
+        `${fmtN(r.nRankTpShard)} + ${fmtN(r.nRankReplicated)} + ${fmtN(r.nRankExp)}` + (adapterMode ? ` + ${fmtN(r.rankAdapter)}` : ""),
         fmtN(r.perRank),
         branch("N = 组件账本", "每个张量记录 dtype / TP / EP / optimizer", fmtN(r.N), textKids) +
         leaf("TP 可切", `TP=${tpLab}　PP=${ppLab}`, fmtN(r.nRankTpShard)) +
         leaf("TP 复制", `仅按 PP=${ppLab} 分 stage`, fmtN(r.nRankReplicated)) +
         leaf("路由专家", `EP=${epLab}　ETP=${etpLab}　PP=${ppLab}`, fmtN(r.nRankExp)) +
-         leaf("checkpoint 真值", S.model.checkpointPrecision, checkpointGiB == null ? "无（合成配置）" : mem(checkpointGiB))) +
+        (adapterMode ? leaf("Adapter 可训练参数", `${(r.policy.trainableRatio * 100).toFixed(4)}%`, fmtN(r.rankAdapter)) : "") +
+         leaf("checkpoint 真值", r.policy.artifact.label, checkpointGiB == null ? "当前 artifact 无精确总字节" : mem(checkpointGiB))) +
       `</div>`;
   } else {
-    const rankTitle = r.E > 0
+    const rankTitleBase = r.E > 0
       ? "N_rank = N_dense/(TP×PP) + N_expert/(EP×ETP×PP)"
       : "N_rank = N/(TP×PP)";
+    const rankTitle = rankTitleBase + (adapterMode ? " + N_adapter" : "");
     const rankFml = r.E > 0
-      ? `${fmtN(r.nRankDense)} + ${fmtN(r.nRankExp)}`
-      : `${fmtN(r.N)} / (${tpLab}×${ppLab})`;
+      ? `${fmtN(r.nRankDense)} + ${fmtN(r.nRankExp)}${adapterMode ? ` + ${fmtN(r.rankAdapter)}` : ""}`
+      : `${fmtN(r.N)} / (${tpLab}×${ppLab})${adapterMode ? ` + ${fmtN(r.rankAdapter)}` : ""}`;
     nTree =
       `<div class="tree">` +
       branch(rankTitle, rankFml, fmtN(r.perRank),
@@ -1074,7 +1225,8 @@ function render() {
         leaf("N_dense / (TP×PP)", `TP=${tpLab}　PP=${ppLab}`, fmtN(r.nRankDense)) +
         (r.E > 0
           ? leaf("N_expert / (EP×ETP×PP)", `EP=${epLab}　ETP=${etpLab}　PP=${ppLab}`, fmtN(r.nRankExp))
-          : "")) +
+          : "") +
+        (adapterMode ? leaf("Adapter 可训练参数", `${(r.policy.trainableRatio * 100).toFixed(4)}%`, fmtN(r.rankAdapter)) : "")) +
       `</div>`;
   }
 
@@ -1093,14 +1245,14 @@ function render() {
       : "") +
     `</div>`;
 
-  const optimizerName = r.isGlm && S.train.optimizer === "muon" ? "Muon + AdamW" : "AdamW";
+  const optimizerName = !adapterMode && r.isGlm && S.train.optimizer === "muon" ? "Muon + AdamW" : "AdamW";
 
   $("mapBody").innerHTML = [
     partBlock("权重", COLORS.weight, r.W, wEq, nTree),
     partBlock("优化器", COLORS.adam, r.AdamGpu, oEq,
       `<ul class="sub">${li(optimizerName, S.train.adamOff ? "在 CPU，不计入 allocated" : (optimizerName === "Muon + AdamW" ? "2D ×4；embed/bias/norm ×12" : "12 byte/参数"), mem(r.AdamGpu))}</ul>`),
     partBlock("梯度", COLORS.grad, r.G, gEq,
-      `<p class="note">${r.isGlm ? "仅可训练参数计梯度；fp32 router buffer 无梯度。" : "与权重同体积。"}</p>`),
+      `<p class="note">仅可训练参数计梯度；冻结基座和 fp32 buffer 均无梯度。</p>`),
     partBlock("动态内存", COLORS.dyn, r.dynG, dynEq, dynKids),
     partBlock("激活值", COLORS.act, r.actG, actEq,
       `<ul class="sub">` +
@@ -1123,24 +1275,38 @@ function partBlock(name, color, g, eq, inner) {
 
 function setErr(msg) { $("err").textContent = msg || ""; }
 
-function fillSeriesSelect() {
-  $("ovSeries").innerHTML = MemoryModelCatalog.listSeries()
-    .map((series) => `<option value="${series.seriesId}">${series.seriesLabel}</option>`)
-    .join("");
-  $("ovSeries").value = S.seriesId;
-}
-
 function fillModelSelect() {
-  const models = MemoryModelCatalog.listModels(S.seriesId);
-  $("ovModel").innerHTML = models.map((entry) => {
-    const suffix = entry.supported ? "" : "（待专项建模）";
-    return `<option value="${entry.modelId}" ${entry.supported ? "" : "disabled"}>${entry.label}${suffix}</option>`;
+  const series = MemoryModelCatalog.listSeries();
+  const models = MemoryModelCatalog.listModels();
+  $("ovModel").innerHTML = series.map((group) => {
+    const options = models.filter((entry) => entry.seriesId === group.seriesId).map((entry) => {
+      const suffix = entry.supported ? "" : "（待专项建模）";
+      return `<option value="${entry.modelId}" ${entry.supported ? "" : "disabled"}>${entry.label}${suffix}</option>`;
+    }).join("");
+    return `<optgroup label="${group.seriesLabel}">${options}</optgroup>`;
   }).join("");
   if (!models.some((entry) => entry.modelId === S.modelName && entry.supported)) {
-    const series = MemoryModelCatalog.listSeries().find((item) => item.seriesId === S.seriesId);
-    S.modelName = series ? series.defaultModelId : models.find((entry) => entry.supported)?.modelId;
+    S.modelName = MemoryModelCatalog.defaultModelId;
   }
   $("ovModel").value = S.modelName;
+}
+
+function fillArtifactSelect() {
+  const artifacts = MemoryTrainingPolicies.listArtifacts(S.modelName);
+  $("ovArtifact").innerHTML = artifacts.map((artifact) =>
+    `<option value="${artifact.artifactId}">${artifact.label}${artifact.trainingCompatibility === "runtime-dependent" ? " · 格式估算" : ""}</option>`
+  ).join("");
+  if (!artifacts.some((artifact) => artifact.artifactId === S.artifactId)) {
+    S.artifactId = MemoryTrainingPolicies.defaultArtifactId(S.modelName);
+  }
+  $("ovArtifact").value = S.artifactId;
+}
+
+function fillTrainingModeSelect() {
+  $("ovTrainMode").innerHTML = MemoryTrainingPolicies.listTrainingModes()
+    .map((mode) => `<option value="${mode.modeId}">${mode.label}</option>`)
+    .join("");
+  $("ovTrainMode").value = S.train.trainingMode || "pretrain";
 }
 
 function configUrls(repo) {
@@ -1169,12 +1335,16 @@ function applyParsedModel(m, resetTrain, entry) {
   if (m.family !== "glm" && (!m.layerTypes || !m.layerTypes.length)) {
     m.layerTypes = defaultLayerTypes(m.layers, m.fullInterval || 4);
   }
+  m.modelId = entry.modelId;
+  if (m.family !== "glm" && resetTrain) m.mtp = 0;
   S.model = m;
   S.loadedModelId = entry.modelId;
   S.modelLabel = entry.label;
   S.loadState = "ready";
   if (resetTrain) S.train = defaultTrain(m);
-  else if (isNum(S.train.mtp)) S.model.mtp = Math.max(S.train.mtp, 0);
+  else if (m.family !== "glm" && isNum(S.train.mtp)) S.model.mtp = Math.max(S.train.mtp, 0);
+  S.train.artifactId = S.artifactId;
+  S.train.artifactAlias = S.artifactAlias;
   writeForm();
   render();
 }
@@ -1193,6 +1363,8 @@ function clearResult() {
 
 async function loadModel(entry, resetTrain) {
   const gen = ++fetchGen;
+  const glmEntry = !!(entry && entry.capabilities && entry.capabilities.vendor === "zhipuai");
+  const isolateLoad = glmEntry || (S.model && S.model.family === "glm");
   if (!entry || !entry.supported) {
     setErr(entry ? entry.supportNote : "未知模型");
     return;
@@ -1202,9 +1374,9 @@ async function loadModel(entry, resetTrain) {
   removeCustomOption();
   S.loadedModelId = null;
   S.loadState = "loading";
-  clearResult();
+  if (isolateLoad) clearResult();
   setErr("正在加载 " + entry.label + " 配置…");
-  const local = localModelForEntry(entry);
+  const local = localModelForEntry(entry, S.artifactId, S.artifactAlias);
   if (local) {
     if (gen !== fetchGen) return;
     setErr("");
@@ -1214,7 +1386,11 @@ async function loadModel(entry, resetTrain) {
   try {
     const cfg = await fetchRemoteConfig(entry.repo);
     if (gen !== fetchGen) return;
-    const m = parseConfig(cfg, { modelId: entry.modelId });
+    const m = parseConfig(cfg, {
+      modelId: entry.modelId,
+      artifactId: S.artifactId,
+      rawAlias: S.artifactAlias,
+    });
     if (!m.hidden || !m.layers) throw new Error("未能读取 hidden_size / num_hidden_layers");
     setErr("");
     applyParsedModel({ ...EMPTY_MODEL, ...m }, resetTrain, entry);
@@ -1222,7 +1398,7 @@ async function loadModel(entry, resetTrain) {
     if (gen !== fetchGen) return;
     S.loadState = "error";
     S.loadedModelId = null;
-    clearResult();
+    if (isolateLoad) clearResult();
     setErr("拉取 " + entry.repo + " 的 config.json 失败：" + (e && e.message ? e.message : e));
   }
 }
@@ -1258,6 +1434,8 @@ function onLayersInput() {
       m = parseConfig(GlmMemoryModel.withLayerOverride(S.customConfig, layers), {
         modelId: "custom-config",
         layerOverride: layers,
+        artifactId: S.artifactId,
+        rawAlias: S.artifactAlias,
       });
     } else {
       const cfg = GlmMemoryModel.makePresetConfig(S.modelName, layers);
@@ -1265,7 +1443,12 @@ function onLayersInput() {
         setErr("当前模型不支持层数覆盖");
         return;
       }
-      m = parseConfig(cfg, { modelId: S.modelName, layerOverride: layers });
+      m = parseConfig(cfg, {
+        modelId: S.modelName,
+        layerOverride: layers,
+        artifactId: S.artifactId,
+        rawAlias: S.artifactAlias,
+      });
     }
     applyParsedModel({ ...EMPTY_MODEL, ...m }, false, { modelId: S.modelName, label: S.modelLabel });
   } catch (e) {
@@ -1288,7 +1471,11 @@ function onCustomConfigLoad() {
   }
   let m;
   try {
-    m = parseConfig(cfg, { modelId: "custom-config" });
+    m = parseConfig(cfg, {
+      modelId: "custom-config",
+      artifactId: S.artifactId,
+      rawAlias: S.artifactAlias,
+    });
   } catch (e) {
     setErr("自定义 config 不受支持：" + (e && e.message ? e.message : e));
     return;
@@ -1310,33 +1497,141 @@ function onModelPicked() {
   const entry = catalogModel(S.modelName);
   if (!entry) return;
   S.seriesId = entry.seriesId;
+  S.artifactId = MemoryTrainingPolicies.defaultArtifactId(entry.modelId);
+  S.artifactAlias = "";
+  fillArtifactSelect();
   const url = new URL(location.href);
-  url.searchParams.set("series", entry.seriesId);
-  url.searchParams.set("model", entry.modelId);
-  history.replaceState(null, "", url);
+  if (entry.capabilities.vendor === "zhipuai") {
+    url.searchParams.set("series", entry.seriesId);
+    url.searchParams.set("model", entry.modelId);
+    url.searchParams.set("artifact", S.artifactId);
+    url.searchParams.delete("artifactAlias");
+    history.replaceState(null, "", url);
+  } else {
+    const previousEntry = MemoryModelCatalog.findModel(url.searchParams.get("model"));
+    if (previousEntry && previousEntry.capabilities.vendor === "zhipuai") {
+      ["series", "model", "artifact", "artifactAlias", "mode", "layers"].forEach((key) => url.searchParams.delete(key));
+      history.replaceState(null, "", url);
+    }
+  }
   loadModel(entry, true);
 }
 
-function onSeriesPicked() {
-  S.seriesId = $("ovSeries").value;
-  const series = MemoryModelCatalog.listSeries().find((item) => item.seriesId === S.seriesId);
-  S.modelName = series.defaultModelId;
-  fillModelSelect();
-  onModelPicked();
+function applyArtifactToLoadedModel() {
+  if (S.model && S.model.family === "glm") {
+    S.model = GlmMemoryModel.withArtifact(S.model, {
+      artifactId: S.artifactId,
+      rawAlias: S.artifactAlias,
+    });
+  }
+  S.train.artifactId = S.artifactId;
+  S.train.artifactAlias = S.artifactAlias;
+  writeForm();
+  render();
+}
+
+function onArtifactPicked() {
+  S.artifactId = $("ovArtifact").value;
+  S.artifactAlias = "";
+  $("ovArtifactAlias").value = "";
+  if (S.model && S.model.family === "glm") {
+    const url = new URL(location.href);
+    url.searchParams.set("artifact", S.artifactId);
+    url.searchParams.delete("artifactAlias");
+    history.replaceState(null, "", url);
+  }
+  applyArtifactToLoadedModel();
+}
+
+function onArtifactAliasPicked() {
+  const raw = String($("ovArtifactAlias").value || "").trim();
+  if (!raw) {
+    S.artifactAlias = "";
+    applyArtifactToLoadedModel();
+    return;
+  }
+  const parsed = MemoryTrainingPolicies.parseArtifactAlias(raw);
+  if (!parsed || parsed.role !== "base") {
+    setErr("DFlash/drafter 不是训练基座，请选择普通 checkpoint artifact");
+    return;
+  }
+  if (parsed.independentArchitecture) {
+    setErr("GLM-5.3-Flash 是独立架构，不能作为 GLM-5.3 的 checkpoint artifact");
+    return;
+  }
+  if (S.model && S.model.family === "glm" && parsed.modelId !== S.modelName) {
+    setErr(`该原始名称属于 ${parsed.modelId}，与当前 ${S.modelName} 不一致`);
+    return;
+  }
+  S.artifactAlias = parsed.rawAlias;
+  S.artifactId = parsed.artifactId;
+  fillArtifactSelect();
+  if (S.model && S.model.family === "glm") {
+    const url = new URL(location.href);
+    url.searchParams.set("artifact", S.artifactId);
+    url.searchParams.set("artifactAlias", S.artifactAlias);
+    history.replaceState(null, "", url);
+  }
+  applyArtifactToLoadedModel();
+}
+
+function onTrainingModePicked() {
+  const previousMode = S.train.trainingMode || "pretrain";
+  const previousEntropy = !!S.train.entropy;
+  readForm();
+  const mode = MemoryTrainingPolicies.findTrainingMode(S.train.trainingMode);
+  const artifact = MemoryTrainingPolicies.findArtifact(S.artifactId);
+  if (mode && mode.modeId === "qlora" && artifact && !artifact.quantized) {
+    S.artifactId = "w4a8-c8";
+    S.artifactAlias = "";
+    fillArtifactSelect();
+    if (S.model && S.model.family === "glm") {
+      S.model = GlmMemoryModel.withArtifact(S.model, { artifactId: S.artifactId });
+    }
+  }
+  S.train.optimizer = mode && mode.modeId === "pretrain" && S.model.family === "glm" ? "muon" : "adam";
+  if (mode && mode.modeId === "rl_actor") {
+    if (previousMode !== "rl_actor" || S.entropyBeforeRl == null) {
+      S.entropyBeforeRl = previousMode === "rl_actor" ? false : previousEntropy;
+    }
+    S.train.entropy = true;
+  } else if (previousMode === "rl_actor") {
+    S.train.entropy = S.entropyBeforeRl == null ? false : !!S.entropyBeforeRl;
+    S.entropyBeforeRl = null;
+  }
+  writeForm();
+  render();
 }
 
 (function applyQueryModel() {
-  const q = new URLSearchParams(location.search).get("model");
+  const params = new URLSearchParams(location.search);
+  const q = params.get("model");
   const entry = q ? MemoryModelCatalog.findModel(q) : null;
   if (entry && entry.supported) {
     S.modelName = entry.modelId;
     S.seriesId = entry.seriesId;
+    const parsedLegacy = /BF16|FP8|W\d|MXFP/i.test(q)
+      ? MemoryTrainingPolicies.parseArtifactAlias(q)
+      : null;
+    S.artifactId = params.get("artifact")
+      || (parsedLegacy && parsedLegacy.modelId === entry.modelId ? parsedLegacy.artifactId : null)
+      || MemoryTrainingPolicies.defaultArtifactId(entry.modelId);
+    S.artifactAlias = params.get("artifactAlias") || "";
+    if (/8l/i.test(q)) S.initialLayerOverride = 8;
+    else if (/16l/i.test(q)) S.initialLayerOverride = 16;
+  }
+  const mode = params.get("mode");
+  if (entry && entry.capabilities.vendor === "zhipuai" && MemoryTrainingPolicies.findTrainingMode(mode)) {
+    S.initialTrainingMode = mode;
   }
 })();
-fillSeriesSelect();
 fillModelSelect();
-$("ovSeries").addEventListener("change", onSeriesPicked);
+fillArtifactSelect();
+fillTrainingModeSelect();
 $("ovModel").addEventListener("change", onModelPicked);
+$("ovArtifact").addEventListener("change", onArtifactPicked);
+$("ovArtifactAlias").addEventListener("change", onArtifactAliasPicked);
+$("ovTrainMode").addEventListener("change", onTrainingModePicked);
 $("ovLayers").addEventListener("input", onLayersInput);
 $("ovLayers").addEventListener("change", onLayersInput);
 $("customCfgLoad").addEventListener("click", onCustomConfigLoad);
@@ -1348,11 +1643,23 @@ $("mapBody").addEventListener("click", (e) => {
   if (d && d.tagName === "DETAILS") d.open = !d.open;
 });
 document.querySelectorAll("input, select").forEach((el) => {
-  if (el.id === "ovModel" || el.id === "ovSeries" || el.id === "ovLayers") return;
+  if (["ovModel", "ovLayers", "ovArtifact", "ovArtifactAlias", "ovTrainMode"].includes(el.id)) return;
   el.addEventListener("input", () => { readForm(); render(); });
   el.addEventListener("change", () => { readForm(); render(); });
 });
-loadModel(catalogModel(S.modelName), true);
+loadModel(catalogModel(S.modelName), true).then(() => {
+  if (S.initialTrainingMode) {
+    S.train.trainingMode = S.initialTrainingMode;
+    $("ovTrainMode").value = S.initialTrainingMode;
+    onTrainingModePicked();
+    S.initialTrainingMode = null;
+  }
+  if (S.initialLayerOverride) {
+    writeNum("ovLayers", S.initialLayerOverride);
+    onLayersInput();
+    S.initialLayerOverride = null;
+  }
+});
 </script>
 </body>
 </html>

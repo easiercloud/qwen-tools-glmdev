@@ -1,9 +1,14 @@
 (function (root, factory) {
-  const api = factory();
+  const policies = typeof module === "object" && module.exports
+    ? require("./training-policies.js")
+    : root.MemoryTrainingPolicies;
+  const api = factory(policies);
   if (typeof module === "object" && module.exports) module.exports = api;
   root.GlmMemoryModel = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (TrainingPolicies) {
   "use strict";
+
+  if (!TrainingPolicies) throw new Error("glm-modeling.js 需要先加载 training-policies.js");
 
   const GIB = 1024 ** 3;
   const GLM_MOE_DSA = "glm_moe_dsa";
@@ -11,32 +16,9 @@
   const PRESET_META = {
     "glm-5.2": {
       modelId: "glm-5.2",
-      checkpointPrecision: "BF16",
-      checkpointBytes: 1506659919872,
     },
     "glm-5.3": {
       modelId: "glm-5.3",
-      checkpointPrecision: "FP8 mixed",
-      checkpointBytes: 755617140416,
-    },
-    "glm-5.3-bf16": {
-      modelId: "glm-5.3-bf16",
-      checkpointPrecision: "BF16",
-      checkpointBytes: 1506659919872,
-    },
-    "glm-5.2-8l": {
-      modelId: "glm-5.2-8l",
-      baseModelId: "glm-5.2",
-      layers: 8,
-      checkpointPrecision: "BF16",
-      scaled: true,
-    },
-    "glm-5.2-16l": {
-      modelId: "glm-5.2-16l",
-      baseModelId: "glm-5.2",
-      layers: 16,
-      checkpointPrecision: "BF16",
-      scaled: true,
     },
   };
 
@@ -60,7 +42,6 @@
     const layers = Number.isFinite(override) && override > 0
       ? Math.floor(override)
       : (meta.layers || 78);
-    const quantized = modelId === "glm-5.3";
     return {
       architectures: ["GlmMoeDsaForCausalLM"],
       model_type: GLM_MOE_DSA,
@@ -96,9 +77,9 @@
       moe_router_dtype: "float32",
       topk_method: "noaux_tc",
       scoring_func: "sigmoid",
-      quantization_config: quantized
-        ? { quant_method: "fp8", fmt: "e4m3", weight_block_size: [128, 128] }
-        : null,
+      // Architecture presets intentionally do not encode checkpoint format.
+      // BF16/FP8/W4/W8 are selected independently as artifacts.
+      quantization_config: null,
     };
   }
 
@@ -175,6 +156,11 @@
     const layerOverride = Number.isFinite(overrideRaw) && overrideRaw > 0 ? Math.floor(overrideRaw) : null;
     const scaled = layerOverride != null || !!presetMeta.scaled;
     const quant = text.quantization_config || cfg.quantization_config || null;
+    const artifact = TrainingPolicies.resolveArtifact({
+      modelId,
+      artifactId: meta.artifactId,
+      rawAlias: meta.rawAlias,
+    });
     return {
       family: "glm",
       architectureKind: GLM_MOE_DSA,
@@ -207,9 +193,11 @@
       attentionBias: !!text.attention_bias,
       routerFp32: text.moe_router_dtype === "float32" || text.moe_router_dtype === "fp32",
       quantization: quant,
-      checkpointPrecision: presetMeta.checkpointPrecision
-        || (quant && quant.quant_method === "fp8" ? "FP8 mixed" : "BF16"),
-      checkpointTruthBytes: !scaled && presetMeta.checkpointBytes ? presetMeta.checkpointBytes : null,
+      artifact,
+      artifactId: artifact.artifactId,
+      checkpointPrecision: artifact.label,
+      checkpointTruthBytes: !scaled ? artifact.checkpointBytes : null,
+      synthetic: scaled,
       sourceRevision: scaled
         ? "synthetic scaled config（减层合成，非官方 checkpoint）"
         : (meta.sourceRevision || "ModelScope master snapshot 2026-09-28"),
@@ -234,6 +222,22 @@
     };
   }
 
+  function withArtifact(model, metadata) {
+    if (!model || model.family !== "glm") throw new Error("withArtifact 仅支持 GLM 模型");
+    const meta = metadata || {};
+    const artifact = TrainingPolicies.resolveArtifact({
+      modelId: model.modelId,
+      artifactId: meta.artifactId,
+      rawAlias: meta.rawAlias,
+    });
+    return Object.assign({}, model, {
+      artifact,
+      artifactId: artifact.artifactId,
+      checkpointPrecision: artifact.label,
+      checkpointTruthBytes: model.synthetic ? null : artifact.checkpointBytes,
+    });
+  }
+
   function buildComponents(model) {
     if (!model || model.architectureKind !== GLM_MOE_DSA) {
       throw new Error("buildComponents 仅支持 glm_moe_dsa");
@@ -256,6 +260,7 @@
         dtypeBytes: opts.dtypeBytes || 2,
         trainable: opts.trainable !== false,
         group: opts.group || "other",
+        mtpNumel: unitNumel * (opts.mtpRepeat || 0),
       });
     };
 
@@ -283,75 +288,75 @@
     });
 
     add("mla_q_a", "MLA q_a_proj", H * model.qLoraRank, totalDecoderLayers, {
-      parallel: "replicated", group: "mla",
+      parallel: "replicated", group: "mla", mtpRepeat: mtp,
     });
     add("mla_q_a_norm", "MLA q_a_layernorm", model.qLoraRank, totalDecoderLayers, {
-      parallel: "replicated", optimizer: "adamw", group: "norm",
+      parallel: "replicated", optimizer: "adamw", group: "norm", mtpRepeat: mtp,
     });
     add("mla_q_b", "MLA q_b_proj", model.qLoraRank * model.nQ * (model.qkNopeHeadDim + model.qkRopeHeadDim), totalDecoderLayers, {
-      parallel: "tp", group: "mla",
+      parallel: "tp", group: "mla", mtpRepeat: mtp,
     });
     add("mla_kv_a", "MLA kv_a_proj_with_mqa", H * (model.kvLoraRank + model.qkRopeHeadDim), totalDecoderLayers, {
-      parallel: "replicated", group: "mla",
+      parallel: "replicated", group: "mla", mtpRepeat: mtp,
     });
     add("mla_kv_a_norm", "MLA kv_a_layernorm", model.kvLoraRank, totalDecoderLayers, {
-      parallel: "replicated", optimizer: "adamw", group: "norm",
+      parallel: "replicated", optimizer: "adamw", group: "norm", mtpRepeat: mtp,
     });
     add("mla_kv_b", "MLA kv_b_proj", model.kvLoraRank * model.nQ * (model.qkNopeHeadDim + model.vHeadDim), totalDecoderLayers, {
-      parallel: "tp", group: "mla",
+      parallel: "tp", group: "mla", mtpRepeat: mtp,
     });
     add("mla_o", "MLA o_proj", model.nQ * model.vHeadDim * H, totalDecoderLayers, {
-      parallel: "tp", group: "mla",
+      parallel: "tp", group: "mla", mtpRepeat: mtp,
     });
     if (model.attentionBias) {
       add("mla_q_a_bias", "MLA q_a bias", model.qLoraRank, totalDecoderLayers, {
-        parallel: "replicated", optimizer: "adamw", group: "bias",
+        parallel: "replicated", optimizer: "adamw", group: "bias", mtpRepeat: mtp,
       });
       add("mla_kv_a_bias", "MLA kv_a bias", model.kvLoraRank + model.qkRopeHeadDim, totalDecoderLayers, {
-        parallel: "replicated", optimizer: "adamw", group: "bias",
+        parallel: "replicated", optimizer: "adamw", group: "bias", mtpRepeat: mtp,
       });
       add("mla_o_bias", "MLA o bias", H, totalDecoderLayers, {
-        parallel: "replicated", optimizer: "adamw", group: "bias",
+        parallel: "replicated", optimizer: "adamw", group: "bias", mtpRepeat: mtp,
       });
     }
 
     add("indexer_wq_b", "DSA indexer wq_b", model.qLoraRank * model.indexNHeads * model.indexHeadDim, fullIndexerTotal, {
-      parallel: "replicated", group: "indexer",
+      parallel: "replicated", group: "indexer", mtpRepeat: mtp,
     });
     add("indexer_wk", "DSA indexer wk", H * model.indexHeadDim, fullIndexerTotal, {
-      parallel: "replicated", group: "indexer",
+      parallel: "replicated", group: "indexer", mtpRepeat: mtp,
     });
     add("indexer_weights", "DSA indexer weights_proj", H * model.indexNHeads, fullIndexerTotal, {
-      parallel: "replicated", group: "indexer",
+      parallel: "replicated", group: "indexer", mtpRepeat: mtp,
     });
     add("indexer_norm", "DSA indexer LayerNorm", 2 * model.indexHeadDim, fullIndexerTotal, {
-      parallel: "replicated", optimizer: "adamw", group: "norm",
+      parallel: "replicated", optimizer: "adamw", group: "norm", mtpRepeat: mtp,
     });
 
     add("dense_mlp", "Dense MLP", 3 * H * model.denseI, denseRegular, {
       parallel: "tp", group: "dense_mlp",
     });
     add("routed_experts", "路由专家", model.experts * 3 * H * model.moeI, sparseTotal, {
-      parallel: "expert", group: "experts",
+      parallel: "expert", group: "experts", mtpRepeat: mtp,
     });
     add("router", "MoE router", model.experts * H, sparseTotal, {
-      parallel: "replicated", group: "router",
+      parallel: "replicated", group: "router", mtpRepeat: mtp,
     });
     add("shared_experts", "共享专家", 3 * H * model.shareI, sparseTotal, {
-      parallel: "tp", group: "shared_experts",
+      parallel: "tp", group: "shared_experts", mtpRepeat: mtp,
     });
     add("router_correction", "router correction buffer", model.experts, sparseTotal, {
-      parallel: "replicated", optimizer: "none", dtypeBytes: 4, trainable: false, group: "buffer",
+      parallel: "replicated", optimizer: "none", dtypeBytes: 4, trainable: false, group: "buffer", mtpRepeat: mtp,
     });
     add("decoder_norms", "Decoder RMSNorm", 2 * H, totalDecoderLayers, {
-      parallel: "replicated", optimizer: "adamw", group: "norm",
+      parallel: "replicated", optimizer: "adamw", group: "norm", mtpRepeat: mtp,
     });
 
     add("mtp_eh_proj", "MTP eh_proj", 2 * H * H, mtp, {
-      parallel: "tp", group: "mtp",
+      parallel: "tp", group: "mtp", mtpRepeat: mtp,
     });
     add("mtp_aux_norms", "MTP enorm/hnorm/shared_head.norm", 3 * H, mtp, {
-      parallel: "replicated", optimizer: "adamw", group: "norm",
+      parallel: "replicated", optimizer: "adamw", group: "norm", mtpRepeat: mtp,
     });
 
     return components;
@@ -431,44 +436,40 @@
     const optimizerType = train.optimizer || "muon";
     const weightBytes = Number.isFinite(train.bw) && train.bw > 0 ? train.bw : 2;
     const gradBytes = Number.isFinite(train.gradBytes) && train.gradBytes > 0 ? train.gradBytes : 2;
-    let rankTrainable = 0;
-    let rankMuon = 0;
-    let rankAdamw = 0;
-    let rankBuffer = 0;
-    let weightRaw = 0;
-    let gradRaw = 0;
-    for (const component of list) {
-      const rankNumel = component.numel * rankScale(component, train);
-      if (component.trainable) {
-        rankTrainable += rankNumel;
-        if (component.optimizer === "adamw") rankAdamw += rankNumel;
-        else if (component.optimizer === "muon") rankMuon += rankNumel;
-        weightRaw += rankNumel * weightBytes;
-        gradRaw += rankNumel * gradBytes;
-      } else {
-        rankBuffer += rankNumel;
-        weightRaw += rankNumel * component.dtypeBytes;
-      }
-    }
-    let optimizerRaw = 0;
-    if (!train.optimizerOffload && !train.adamOff) {
-      optimizerRaw = optimizerType === "muon"
-        ? rankMuon * 4 + rankAdamw * 12
-        : (rankMuon + rankAdamw) * 12;
-    }
-    return {
-      perRank: rankTrainable + rankBuffer,
-      rankTrainable,
-      rankBuffer,
-      rankMuon,
-      rankAdamw,
-      W: weightRaw / GIB,
-      G: gradRaw / GIB,
-      optimizer: optimizerRaw / GIB,
+    const memory = TrainingPolicies.aggregateComponentMemory({
+      components: list,
+      rankScale: function (component) { return rankScale(component, train); },
+      mode: train.trainingMode || train.mode || "pretrain",
+      artifact: model.artifact || TrainingPolicies.resolveArtifact({
+        modelId: model.modelId,
+        artifactId: model.artifactId,
+      }),
+      trainableRatio: train.trainableRatio,
+      trainableParams: train.trainableParams,
+      trainWeightBytes: weightBytes,
+      gradBytes,
+      mtpEnabled: train.mtpEnabled !== false,
       optimizerType,
-      nRankExpert: list.filter((x) => x.parallel === "expert").reduce((s, x) => s + x.numel * rankScale(x, train), 0),
-      nRankTpShard: list.filter((x) => x.parallel === "tp").reduce((s, x) => s + x.numel * rankScale(x, train), 0),
-      nRankReplicated: list.filter((x) => x.parallel === "replicated").reduce((s, x) => s + x.numel * rankScale(x, train), 0),
+      optimizerOffload: !!train.optimizerOffload || !!train.adamOff,
+    });
+    return {
+      perRank: memory.perRank,
+      rankBase: memory.rankBase,
+      rankTrainable: memory.rankTrainable,
+      rankBaseTrainable: memory.rankBaseTrainable,
+      rankAdapter: memory.rankAdapter,
+      rankFrozen: memory.rankFrozen,
+      rankBuffer: memory.rankBuffer,
+      rankMuon: memory.rankMuon,
+      rankAdamw: memory.rankAdamw,
+      W: memory.weightBytes / GIB,
+      G: memory.gradBytes / GIB,
+      optimizer: memory.optimizerBytes / GIB,
+      optimizerType,
+      policy: memory.policy,
+      nRankExpert: memory.nRankExpert,
+      nRankTpShard: memory.nRankTpShard,
+      nRankReplicated: memory.nRankReplicated,
     };
   }
 
@@ -498,6 +499,7 @@
     makeMlpLayerTypes,
     makePresetConfig,
     withLayerOverride,
+    withArtifact,
     isGlmMoeDsaConfig,
     parseConfig,
     buildComponents,
