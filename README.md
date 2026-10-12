@@ -2,7 +2,8 @@
 
 训练工程工具台。一个仓库、一个入口，按工作面拆成独立模块，避免显存、数据、性能的改动互相踩。
 
-在线入口：[zyang6.github.io/qwen-tools](https://zyang6.github.io/qwen-tools/)  
+在线入口（GLM 版）：[easiercloud.github.io/qwen-tools-glmdev](https://easiercloud.github.io/qwen-tools-glmdev/)  
+在线入口（原版）：[zyang6.github.io/qwen-tools](https://zyang6.github.io/qwen-tools/)  
 源码：[github.com/easiercloud/qwen-tools-glmdev](https://github.com/easiercloud/qwen-tools-glmdev)
 
 ## 模块
